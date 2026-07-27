@@ -135,3 +135,60 @@ game:GetService("Players").PlayerAdded:Connect(function()
 end)
 
 print("[FFA Fix] ✅ FFA mode enabled!")
+-- ============================================================
+-- FFA RAGEBOT FORCE - Makes Ragebot work in FFA
+-- ============================================================
+
+print("[FFA Ragebot] Forcing Ragebot to activate...")
+
+-- Force match detection
+local player = game:GetService("Players").LocalPlayer
+if player then
+    player:SetAttribute("InMatch", true)
+    player:SetAttribute("InDuel", true)
+    player:SetAttribute("InGame", true)
+    player:SetAttribute("InFight", true)
+    player:SetAttribute("MatchActive", true)
+    player:SetAttribute("InLobby", false)
+    player:SetAttribute("InSpawn", false)
+    player:SetAttribute("IsSpectating", false)
+    player:SetAttribute("InIntermission", false)
+end
+
+-- Force the Ragebot to think it's in a match
+local function forceRagebotActive()
+    -- If there's a global config for Ragebot, set it
+    if _G.RagebotConfig then
+        _G.RagebotConfig.Enabled = true
+        _G.RagebotConfig.Active = true
+        _G.RagebotConfig.InMatch = true
+    end
+    
+    -- If there's a global variable for match status
+    _G.InMatch = true
+    _G.InGame = true
+    _G.MatchActive = true
+    
+    print("[FFA Ragebot] ✅ Ragebot forced active!")
+end
+
+pcall(forceRagebotActive)
+
+-- Also run when the game changes
+game:GetService("RunService").Heartbeat:Connect(function()
+    -- Keep the attributes set
+    if player then
+        player:SetAttribute("InMatch", true)
+        player:SetAttribute("InDuel", true)
+        player:SetAttribute("InGame", true)
+        player:SetAttribute("InFight", true)
+        player:SetAttribute("MatchActive", true)
+        player:SetAttribute("InLobby", false)
+    end
+end)
+
+print("[FFA Ragebot] ✅ FFA mode forced!")
+
+-- ============================================================
+-- END OF FFA RAGEBOT FORCE
+-- ============================================================
