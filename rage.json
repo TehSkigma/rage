@@ -256,3 +256,97 @@ print("[FFA Ragebot] ✅ FFA mode forced!")
 -- ============================================================
 -- END OF FFA RAGEBOT FORCE
 -- ============================================================
+-- ============================================================
+-- FFA RAGEBOT FIX - FORCE ACTIVATION
+-- ============================================================
+
+print("[FFA Fix] Loading FFA Ragebot fix...")
+
+-- Force Ragebot to be active in FFA
+local function forceFFARagebot()
+    -- Find the main config table
+    local config = getgenv().lC or getgenv().G or getgenv().l or getgenv()._G
+    if not config then
+        print("[FFA Fix] ❌ Could not find config table!")
+        return
+    end
+    
+    print("[FFA Fix] ✅ Found config table")
+    
+    -- Force Ragebot settings
+    if config.target then
+        config.target.enabled = true
+        config.target.rageMasterOn = true
+        config.target.auto = true
+        config.target.character = nil  -- Will be set by the script
+        print("[FFA Fix] ✅ Ragebot enabled")
+    end
+    
+    -- Force match detection
+    local player = game:GetService("Players").LocalPlayer
+    if player then
+        player:SetAttribute("InMatch", true)
+        player:SetAttribute("InDuel", true)
+        player:SetAttribute("InGame", true)
+        player:SetAttribute("InFight", true)
+        player:SetAttribute("MatchActive", true)
+        player:SetAttribute("InLobby", false)
+        player:SetAttribute("InSpawn", false)
+        player:SetAttribute("IsSpectating", false)
+        print("[FFA Fix] ✅ Match attributes set")
+    end
+    
+    -- Force the Ragebot to find a target
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            
+            -- If Ragebot is enabled but no target, find one
+            if config.target and config.target.rageMasterOn then
+                if not config.target.character or not config.target.character.Parent then
+                    -- Find nearest player
+                    local nearest = config.nearest and config.nearest()
+                    if nearest then
+                        config.target.character = nearest
+                        config.target.enabled = true
+                        print("[FFA Fix] 🎯 Target set:", nearest.Name)
+                    else
+                        -- Scan for any player
+                        local players = game:GetService("Players")
+                        local localPlayer = players.LocalPlayer
+                        for _, p in ipairs(players:GetPlayers()) do
+                            if p ~= localPlayer and p.Character then
+                                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                                if hrp then
+                                    config.target.character = p.Character
+                                    config.target.enabled = true
+                                    print("[FFA Fix] 🎯 Target found:", p.Name)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Run the fix
+task.spawn(function()
+    task.wait(3) -- Wait for the script to fully load
+    pcall(forceFFARagebot)
+end)
+
+-- Also hook into player added to keep targeting
+game:GetService("Players").PlayerAdded:Connect(function()
+    task.wait(1)
+    pcall(forceFFARagebot)
+end)
+
+print("[FFA Fix] ✅ FFA Ragebot fix loaded!")
+print("[FFA Fix] Waiting for targets...")
+
+-- ============================================================
+-- END OF FFA FIX
+-- ============================================================
