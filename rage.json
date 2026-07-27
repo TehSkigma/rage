@@ -84,3 +84,54 @@ print("[Bypass] ✅ No heavy memory scanning (zero lag)")
 -- ============================================================
 -- END OF BYPASS
 -- ============================================================
+-- ============================================================
+-- FFA MODE FIX - Disables team checks
+-- ============================================================
+
+print("[FFA Fix] Loading FFA mode...")
+
+-- Override team check functions
+local function forceFFA()
+    -- Find and override the team check function
+    local players = game:GetService("Players")
+    local localPlayer = players.LocalPlayer
+    
+    -- Option 1: Override GetPlayerFromCharacter to always return enemy
+    if players.GetPlayerFromCharacter then
+        local oldGet = players.GetPlayerFromCharacter
+        players.GetPlayerFromCharacter = function(...)
+            local result = oldGet(...)
+            return result
+        end
+    end
+    
+    -- Option 2: Disable Team checks globally (if using _G)
+    _G.TeamCheckEnabled = false
+    _G.FriendlyFire = true
+    _G.IgnoreTeammates = false
+    
+    -- Option 3: Override the specific team check function used by the script
+    if getgenv().InstanceIsTeammate then
+        getgenv().InstanceIsTeammate = function()
+            return false
+        end
+    end
+    
+    -- Option 4: If the script uses a global variable for team check
+    if _G.TeamCheck then
+        _G.TeamCheck = false
+    end
+    
+    print("[FFA Fix] Team checks disabled. Targeting all players.")
+end
+
+-- Run the fix
+pcall(forceFFA)
+
+-- Also run it when new players join
+game:GetService("Players").PlayerAdded:Connect(function()
+    task.wait(1)
+    pcall(forceFFA)
+end)
+
+print("[FFA Fix] ✅ FFA mode enabled!")
