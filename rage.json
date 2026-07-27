@@ -148,3 +148,123 @@ print("[Bypass] ✅ No heavy memory scanning (zero lag)")
 -- ============================================================
 -- END OF BYPASS
 -- ============================================================
+-- ============================================================
+-- FFA MODE DETECTION FIX
+-- Forces the script to recognize FFA as a valid match
+-- ============================================================
+
+print("[FFA Mode] Forcing FFA match detection...")
+
+local function forceFFAMode()
+    local player = game:GetService("Players").LocalPlayer
+    if not player then return end
+    
+    -- Force all match-related attributes to true
+    local attributes = {
+        "InMatch", "InDuel", "InGame", "InFight", 
+        "MatchActive", "IsInMatch", "IsInDuel",
+        "InRound", "RoundActive"
+    }
+    
+    for _, attr in ipairs(attributes) do
+        player:SetAttribute(attr, true)
+    end
+    
+    -- Force lobby attributes to false
+    local lobbyAttrs = {
+        "InLobby", "InSpawn", "IsSpectating", 
+        "InIntermission", "IsRespawning"
+    }
+    
+    for _, attr in ipairs(lobbyAttrs) do
+        player:SetAttribute(attr, false)
+    end
+    
+    print("[FFA Mode] ✅ Match attributes set for FFA")
+    
+    -- Also override the IsInActiveMatch function if it exists
+    local env = getgenv()
+    if env.InstanceIsInActiveMatch then
+        env.InstanceIsInActiveMatch = function()
+            return true
+        end
+        print("[FFA Mode] ✅ IsInActiveMatch overridden")
+    end
+    
+    if env.InstanceIsInLobby then
+        env.InstanceIsInLobby = function()
+            return false
+        end
+        print("[FFA Mode] ✅ IsInLobby overridden")
+    end
+end
+
+-- Run immediately and keep running
+pcall(forceFFAMode)
+
+-- Keep attributes set
+game:GetService("RunService").Heartbeat:Connect(function()
+    pcall(forceFFAMode)
+end)
+
+print("[FFA Mode] ✅ FFA mode detection fix loaded!")
+
+-- ============================================================
+-- END OF FFA MODE FIX
+-- ============================================================
+-- ============================================================
+-- FFA TARGETING FIX - Target all players
+-- ============================================================
+
+print("[FFA Targeting] Forcing all players as targets...")
+
+local function forceFFATargeting()
+    local config = getgenv().lC or getgenv().G or getgenv().l or getgenv()._G
+    if not config then return end
+    
+    -- Override the team check function
+    if config.rC then
+        local oldRC = config.rC
+        config.rC = function(l)
+            -- FFA MODE: Always return false (no teammates)
+            return false
+        end
+        print("[FFA Targeting] ✅ Team check overridden")
+    end
+    
+    -- Override the c() function (team check)
+    if config.c then
+        config.c = function(l)
+            -- FFA MODE: Never skip anyone
+            return false
+        end
+        print("[FFA Targeting] ✅ Team check (c) overridden")
+    end
+    
+    -- If there's a global team check variable
+    if getgenv().TeamCheckEnabled ~= nil then
+        getgenv().TeamCheckEnabled = false
+        print("[FFA Targeting] ✅ TeamCheckEnabled set to false")
+    end
+    
+    -- Force target settings
+    if config.target then
+        config.target.enabled = true
+        config.target.rageMasterOn = true
+        config.target.auto = true
+        config.target.autoshoot = true
+        config.target.immune = false
+        print("[FFA Targeting] ✅ Target settings forced")
+    end
+end
+
+task.spawn(function()
+    task.wait(1)
+    pcall(forceFFATargeting)
+end)
+
+print("[FFA Targeting] ✅ FFA targeting fix loaded!")
+
+-- ============================================================
+-- END OF FFA TARGETING FIX
+-- ============================================================
