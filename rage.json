@@ -149,122 +149,151 @@ print("[Bypass] ✅ No heavy memory scanning (zero lag)")
 -- END OF BYPASS
 -- ============================================================
 -- ============================================================
--- FFA MODE DETECTION FIX
--- Forces the script to recognize FFA as a valid match
+-- FFA RAGEBOT - STANDALONE VERSION
+-- This runs independently of your main script
+-- Forces aimbot + autoshoot in FFA mode
 -- ============================================================
 
-print("[FFA Mode] Forcing FFA match detection...")
+print("[FFA Ragebot] Starting standalone Ragebot...")
 
-local function forceFFAMode()
-    local player = game:GetService("Players").LocalPlayer
-    if not player then return end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInput = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ============================================================
+-- CONFIGURATION (Adjust these)
+-- ============================================================
+
+local CONFIG = {
+    Enabled = true,
+    FOV = 500,           -- Max targeting distance
+    Smoothness = 5,      -- Lower = faster
+    TargetPart = "Head", -- "Head", "HumanoidRootPart", "Torso"
+    AutoShoot = true,
+    HoldKey = "MouseButton1", -- "MouseButton1" for auto-shoot, or "None"
+}
+
+-- ============================================================
+-- CORE LOGIC
+-- ============================================================
+
+local function getClosestPlayer()
+    local localChar = LocalPlayer.Character
+    if not localChar then return nil end
+    local localPos = localChar:FindFirstChild("HumanoidRootPart")
+    if not localPos then return nil end
     
-    -- Force all match-related attributes to true
-    local attributes = {
-        "InMatch", "InDuel", "InGame", "InFight", 
-        "MatchActive", "IsInMatch", "IsInDuel",
-        "InRound", "RoundActive"
-    }
+    local closest = nil
+    local closestDist = CONFIG.FOV
     
-    for _, attr in ipairs(attributes) do
-        player:SetAttribute(attr, true)
-    end
-    
-    -- Force lobby attributes to false
-    local lobbyAttrs = {
-        "InLobby", "InSpawn", "IsSpectating", 
-        "InIntermission", "IsRespawning"
-    }
-    
-    for _, attr in ipairs(lobbyAttrs) do
-        player:SetAttribute(attr, false)
-    end
-    
-    print("[FFA Mode] ✅ Match attributes set for FFA")
-    
-    -- Also override the IsInActiveMatch function if it exists
-    local env = getgenv()
-    if env.InstanceIsInActiveMatch then
-        env.InstanceIsInActiveMatch = function()
-            return true
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local char = player.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local dist = (hrp.Position - localPos.Position).Magnitude
+                    if dist < closestDist then
+                        closest = char
+                        closestDist = dist
+                    end
+                end
+            end
         end
-        print("[FFA Mode] ✅ IsInActiveMatch overridden")
     end
     
-    if env.InstanceIsInLobby then
-        env.InstanceIsInLobby = function()
-            return false
-        end
-        print("[FFA Mode] ✅ IsInLobby overridden")
+    return closest, closestDist
+end
+
+local function getTargetPart(character)
+    if CONFIG.TargetPart == "Head" then
+        return character:FindFirstChild("Head")
+    elseif CONFIG.TargetPart == "HumanoidRootPart" then
+        return character:FindFirstChild("HumanoidRootPart")
+    else
+        return character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
     end
 end
 
--- Run immediately and keep running
-pcall(forceFFAMode)
-
--- Keep attributes set
-game:GetService("RunService").Heartbeat:Connect(function()
-    pcall(forceFFAMode)
-end)
-
-print("[FFA Mode] ✅ FFA mode detection fix loaded!")
-
--- ============================================================
--- END OF FFA MODE FIX
--- ============================================================
--- ============================================================
--- FFA TARGETING FIX - Target all players
--- ============================================================
-
-print("[FFA Targeting] Forcing all players as targets...")
-
-local function forceFFATargeting()
-    local config = getgenv().lC or getgenv().G or getgenv().l or getgenv()._G
-    if not config then return end
+local function aimAt(targetPart)
+    if not targetPart or not Camera then return false end
     
-    -- Override the team check function
-    if config.rC then
-        local oldRC = config.rC
-        config.rC = function(l)
-            -- FFA MODE: Always return false (no teammates)
-            return false
-        end
-        print("[FFA Targeting] ✅ Team check overridden")
+    local viewportPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+    if not onScreen then return false end
+    
+    -- Move mouse to target
+    pcall(function()
+        VirtualInput:SendMouseMovement(viewportPoint.X, viewportPoint.Y, false)
+    end)
+    
+    return true
+end
+
+local function shoot()
+    if CONFIG.AutoShoot then
+        pcall(function()
+            VirtualInput:SendMouseButtonEvent(0, 0, 0, true, Enum.UserInputType.MouseButton1, false)
+            task.wait(0.02)
+            VirtualInput:SendMouseButtonEvent(0, 0, 0, false, Enum.UserInputType.MouseButton1, false)
+        end)
+        return true
+    end
+    return false
+end
+
+-- ============================================================
+-- MAIN LOOP
+-- ============================================================
+
+local function mainLoop()
+    if not CONFIG.Enabled then return end
+    
+    local target, dist = getClosestPlayer()
+    if not target then return end
+    
+    local targetPart = getTargetPart(target)
+    if not targetPart then return end
+    
+    -- Check if target is alive
+    local humanoid = target:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        return
     end
     
-    -- Override the c() function (team check)
-    if config.c then
-        config.c = function(l)
-            -- FFA MODE: Never skip anyone
-            return false
-        end
-        print("[FFA Targeting] ✅ Team check (c) overridden")
-    end
+    -- Aim at target
+    local aimed = aimAt(targetPart)
     
-    -- If there's a global team check variable
-    if getgenv().TeamCheckEnabled ~= nil then
-        getgenv().TeamCheckEnabled = false
-        print("[FFA Targeting] ✅ TeamCheckEnabled set to false")
-    end
-    
-    -- Force target settings
-    if config.target then
-        config.target.enabled = true
-        config.target.rageMasterOn = true
-        config.target.auto = true
-        config.target.autoshoot = true
-        config.target.immune = false
-        print("[FFA Targeting] ✅ Target settings forced")
+    -- Shoot if aimed and auto-shoot is enabled
+    if aimed and CONFIG.AutoShoot then
+        shoot()
     end
 end
 
-task.spawn(function()
-    task.wait(1)
-    pcall(forceFFATargeting)
+-- ============================================================
+-- START THE LOOP
+-- ============================================================
+
+RunService.RenderStepped:Connect(function()
+    pcall(mainLoop)
 end)
 
-print("[FFA Targeting] ✅ FFA targeting fix loaded!")
+print("[FFA Ragebot] ✅ Standalone Ragebot is running!")
+print("[FFA Ragebot] Targeting all players in FFA mode.")
 
 -- ============================================================
--- END OF FFA TARGETING FIX
+-- TOGGLE WITH A KEY (Press F9 to toggle)
+-- ============================================================
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F9 then
+        CONFIG.Enabled = not CONFIG.Enabled
+        print("[FFA Ragebot] Toggled:", CONFIG.Enabled and "ON" or "OFF")
+    end
+end)
+
+-- ============================================================
+-- END OF STANDALONE RAGEBOT
 -- ============================================================
