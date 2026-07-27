@@ -350,7 +350,7 @@ end
 task.spawn(scrubMemory)
 
 -- ============================================================
--- 8. INITIALIZATION
+-- PART 9: FINAL INITIALIZATION
 -- ============================================================
 
 print("[Bypass] ✅ Enhanced anti-cheat bypass loaded successfully!")
@@ -360,8 +360,13 @@ print("[Bypass] ✅ Burst control active (max 5 packets/120ms)")
 print("[Bypass] ✅ Hit rate capped at 22%")
 print("[Bypass] ✅ Network spoofing active")
 print("[Bypass] ✅ Memory scrubber active")
+print("[Bypass] ✅ Auto-Config Loader integrated")
+
+if SaveManager then
+    print("[Bypass] 💾 Configs saved to: LinoriaLibSettings/settings/")
+    print("[Bypass] 🔄 Auto-load selection saved to: LinoriaLibSettings/auto_config_selection.txt")
+end
 
 -- ============================================================
--- END OF BYPASS
+-- END OF BYPASS + AUTO-CONFIG SYSTEM
 -- ============================================================
-print("loaded")
