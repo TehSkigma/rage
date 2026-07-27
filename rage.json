@@ -465,3 +465,141 @@ print("[FFA Targeting] ✅ FFA targeting fix loaded!")
 -- ============================================================
 -- END OF FFA TARGETING FIX
 -- ============================================================
+-- ============================================================
+-- FIX: Direct RemoteEvent Shooting for Ragebot
+-- ============================================================
+
+print("[RemoteShoot Fix] Loading direct shooting...")
+
+local function forceRemoteShoot()
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local players = game:GetService("Players")
+    local localPlayer = players.LocalPlayer
+    
+    -- Find the UseItem RemoteEvent
+    local useItemEvent = nil
+    local remotes = replicatedStorage:FindFirstChild("Remotes")
+    if remotes then
+        local replication = remotes:FindFirstChild("Replication")
+        if replication then
+            local fighter = replication:FindFirstChild("Fighter")
+            if fighter then
+                useItemEvent = fighter:FindFirstChild("UseItem")
+            end
+        end
+    end
+    
+    if not useItemEvent then
+        -- Try to find it by scanning
+        for _, child in ipairs(replicatedStorage:GetDescendants()) do
+            if child:IsA("RemoteEvent") and child.Name:lower():find("useitem") then
+                useItemEvent = child
+                break
+            end
+        end
+    end
+    
+    if not useItemEvent then
+        print("[RemoteShoot Fix] ❌ UseItem RemoteEvent not found!")
+        return
+    end
+    
+    print("[RemoteShoot Fix] ✅ Found UseItem RemoteEvent")
+    
+    -- Get the FighterController
+    local fighterController = nil
+    local playerScripts = localPlayer:FindFirstChild("PlayerScripts")
+    if playerScripts then
+        local controllers = playerScripts:FindFirstChild("Controllers")
+        if controllers then
+            local fc = controllers:FindFirstChild("FighterController")
+            if fc then
+                fighterController = require(fc)
+            end
+        end
+    end
+    
+    if not fighterController then
+        print("[RemoteShoot Fix] ❌ FighterController not found!")
+        return
+    end
+    
+    -- Main shooting loop
+    local function shootLoop()
+        while true do
+            task.wait(0.1)
+            
+            -- Check if Ragebot is enabled
+            local config = getgenv().lC or getgenv().G or getgenv().l
+            if not config or not config.target or not config.target.rageMasterOn then
+                continue
+            end
+            
+            -- Check if we have a target
+            local target = config.target.character
+            if not target or not target.Parent then
+                continue
+            end
+            
+            -- Check if target is alive
+            local humanoid = target:FindFirstChildOfClass("Humanoid")
+            if not humanoid or humanoid.Health <= 0 then
+                continue
+            end
+            
+            -- Get the equipped item
+            local localFighter = fighterController.LocalFighter
+            if not localFighter then
+                continue
+            end
+            
+            local equippedItem = localFighter.EquippedItem
+            if not equippedItem then
+                continue
+            end
+            
+            local objectId = equippedItem:Get("ObjectID")
+            if not objectId then
+                continue
+            end
+            
+            -- Get the target position
+            local hrp = target:FindFirstChild("HumanoidRootPart")
+            if not hrp then
+                continue
+            end
+            
+            -- Fire the UseItem RemoteEvent to shoot
+            pcall(function()
+                useItemEvent:FireServer(
+                    objectId,
+                    "StartShooting",
+                    {
+                        [utf8.char(1)] = {
+                            [utf8.char(0)] = "CFrameData",
+                            [utf8.char(1)] = "CFrameData",
+                            [utf8.char(2)] = hrp,
+                            [utf8.char(3)] = "CFrameData"
+                        }
+                    },
+                    nil
+                )
+            end)
+        end
+    end
+    
+    task.spawn(shootLoop)
+    print("[RemoteShoot Fix] ✅ Shooting loop started")
+end
+
+-- Run the fix
+task.spawn(function()
+    task.wait(3)
+    pcall(forceRemoteShoot)
+end)
+
+print("[RemoteShoot Fix] ✅ Direct shooting fix loaded!")
+
+-- ============================================================
+-- END OF REMOTESHOOT FIX
+-- ============================================================
