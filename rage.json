@@ -350,3 +350,118 @@ print("[FFA Fix] Waiting for targets...")
 -- ============================================================
 -- END OF FFA FIX
 -- ============================================================
+-- ============================================================
+-- FFA TARGETING FIX - Force Ragebot to shoot
+-- ============================================================
+
+print("[FFA Targeting] Forcing Ragebot to target...")
+
+local function forceRagebotTargeting()
+    local config = getgenv().lC or getgenv().G or getgenv().l or getgenv()._G
+    if not config then
+        print("[FFA Targeting] ❌ Config not found!")
+        return
+    end
+    
+    print("[FFA Targeting] ✅ Config found")
+    
+    -- Force target settings
+    if config.target then
+        config.target.enabled = true
+        config.target.rageMasterOn = true
+        config.target.auto = true
+        config.target.autoshoot = true  -- Force auto-shoot
+        config.target.immune = false
+        print("[FFA Targeting] ✅ Settings forced")
+    end
+    
+    -- Create a manual targeting loop
+    local function manualTargetLoop()
+        while true do
+            task.wait(0.05) -- 20 times per second
+            
+            -- Skip if Ragebot is not enabled
+            if not config.target or not config.target.rageMasterOn then
+                continue
+            end
+            
+            -- If target is dead or missing, find a new one
+            local currentTarget = config.target.character
+            if not currentTarget or not currentTarget.Parent then
+                -- Find nearest enemy
+                local nearest = config.nearest and config.nearest()
+                if nearest then
+                    config.target.character = nearest
+                    config.target.enabled = true
+                    print("[FFA Targeting] 🎯 New target:", nearest.Name)
+                else
+                    -- Manual scan for enemies
+                    local players = game:GetService("Players")
+                    local localPlayer = players.LocalPlayer
+                    local closest = nil
+                    local closestDist = math.huge
+                    
+                    for _, p in ipairs(players:GetPlayers()) do
+                        if p ~= localPlayer and p.Character then
+                            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                local dist = (hrp.Position - (localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") and localPlayer.Character.HumanoidRootPart.Position or Vector3.new(0,0,0))).Magnitude
+                                if dist < closestDist then
+                                    closest = p.Character
+                                    closestDist = dist
+                                end
+                            end
+                        end
+                    end
+                    
+                    if closest then
+                        config.target.character = closest
+                        config.target.enabled = true
+                        print("[FFA Targeting] 🎯 Manual target found:", closest.Name)
+                    end
+                end
+            end
+            
+            -- If we have a target, try to shoot
+            local target = config.target.character
+            if target and target.Parent then
+                -- Make sure we have a valid Humanoid
+                local humanoid = target:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    -- Force the Ragebot to attack
+                    local fighterController = config.fighter or config.fighterController
+                    if fighterController and fighterController.LocalFighter then
+                        -- This triggers the attack
+                        pcall(function()
+                            -- Try different attack methods
+                            if fighterController.LocalFighter.UseItem then
+                                fighterController.LocalFighter:UseItem()
+                            end
+                            if fighterController.LocalFighter.StartShooting then
+                                fighterController.LocalFighter:StartShooting()
+                            end
+                            if fighterController.LocalFighter.Attack then
+                                fighterController.LocalFighter:Attack()
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Start the manual targeting loop
+    task.spawn(manualTargetLoop)
+end
+
+-- Run the fix
+task.spawn(function()
+    task.wait(1)
+    pcall(forceRagebotTargeting)
+end)
+
+print("[FFA Targeting] ✅ FFA targeting fix loaded!")
+
+-- ============================================================
+-- END OF FFA TARGETING FIX
+-- ============================================================
