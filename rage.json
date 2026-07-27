@@ -149,36 +149,52 @@ print("[Bypass] ✅ No heavy memory scanning (zero lag)")
 -- END OF BYPASS
 -- ============================================================
 -- ============================================================
--- FFA RAGEBOT - STANDALONE VERSION
--- This runs independently of your main script
--- Forces aimbot + autoshoot in FFA mode
+-- FFA RAGEBOT - REMOTEEVENT VERSION
+-- Uses the game's own RemoteEvents to shoot
 -- ============================================================
 
-print("[FFA Ragebot] Starting standalone Ragebot...")
+print("[FFA Remote] Starting RemoteEvent Ragebot...")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local VirtualInput = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
--- ============================================================
--- CONFIGURATION (Adjust these)
--- ============================================================
+-- Find the UseItem RemoteEvent
+local UseItem = nil
+for _, child in ipairs(ReplicatedStorage:GetDescendants()) do
+    if child:IsA("RemoteEvent") and child.Name:lower():find("useitem") then
+        UseItem = child
+        break
+    end
+end
 
-local CONFIG = {
-    Enabled = true,
-    FOV = 500,           -- Max targeting distance
-    Smoothness = 5,      -- Lower = faster
-    TargetPart = "Head", -- "Head", "HumanoidRootPart", "Torso"
-    AutoShoot = true,
-    HoldKey = "MouseButton1", -- "MouseButton1" for auto-shoot, or "None"
-}
+if not UseItem then
+    warn("[FFA Remote] UseItem RemoteEvent not found!")
+    return
+end
 
--- ============================================================
--- CORE LOGIC
--- ============================================================
+print("[FFA Remote] Found UseItem RemoteEvent")
+
+-- Get the FighterController
+local FighterController = nil
+local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+if playerScripts then
+    local controllers = playerScripts:FindFirstChild("Controllers")
+    if controllers then
+        local fc = controllers:FindFirstChild("FighterController")
+        if fc then
+            FighterController = require(fc)
+        end
+    end
+end
+
+if not FighterController then
+    warn("[FFA Remote] FighterController not found!")
+    return
+end
+
+print("[FFA Remote] Found FighterController")
 
 local function getClosestPlayer()
     local localChar = LocalPlayer.Character
@@ -187,7 +203,7 @@ local function getClosestPlayer()
     if not localPos then return nil end
     
     local closest = nil
-    local closestDist = CONFIG.FOV
+    local closestDist = 500
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -205,95 +221,60 @@ local function getClosestPlayer()
         end
     end
     
-    return closest, closestDist
+    return closest
 end
 
-local function getTargetPart(character)
-    if CONFIG.TargetPart == "Head" then
-        return character:FindFirstChild("Head")
-    elseif CONFIG.TargetPart == "HumanoidRootPart" then
-        return character:FindFirstChild("HumanoidRootPart")
-    else
-        return character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-    end
-end
-
-local function aimAt(targetPart)
-    if not targetPart or not Camera then return false end
-    
-    local viewportPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-    if not onScreen then return false end
-    
-    -- Move mouse to target
-    pcall(function()
-        VirtualInput:SendMouseMovement(viewportPoint.X, viewportPoint.Y, false)
-    end)
-    
-    return true
-end
-
-local function shoot()
-    if CONFIG.AutoShoot then
-        pcall(function()
-            VirtualInput:SendMouseButtonEvent(0, 0, 0, true, Enum.UserInputType.MouseButton1, false)
-            task.wait(0.02)
-            VirtualInput:SendMouseButtonEvent(0, 0, 0, false, Enum.UserInputType.MouseButton1, false)
-        end)
-        return true
-    end
-    return false
-end
-
--- ============================================================
--- MAIN LOOP
--- ============================================================
-
-local function mainLoop()
-    if not CONFIG.Enabled then return end
-    
-    local target, dist = getClosestPlayer()
+local function shootAt(target)
     if not target then return end
     
-    local targetPart = getTargetPart(target)
-    if not targetPart then return end
+    local hrp = target:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
     
-    -- Check if target is alive
     local humanoid = target:FindFirstChildOfClass("Humanoid")
     if not humanoid or humanoid.Health <= 0 then
         return
     end
     
-    -- Aim at target
-    local aimed = aimAt(targetPart)
+    local localFighter = FighterController.LocalFighter
+    if not localFighter then return end
     
-    -- Shoot if aimed and auto-shoot is enabled
-    if aimed and CONFIG.AutoShoot then
-        shoot()
+    local equippedItem = localFighter.EquippedItem
+    if not equippedItem then return end
+    
+    local objectId = equippedItem:Get("ObjectID")
+    if not objectId then return end
+    
+    -- Fire the UseItem RemoteEvent
+    pcall(function()
+        UseItem:FireServer(
+            objectId,
+            "StartShooting",
+            {
+                [utf8.char(1)] = {
+                    [utf8.char(0)] = "CFrameData",
+                    [utf8.char(1)] = "CFrameData",
+                    [utf8.char(2)] = hrp,
+                    [utf8.char(3)] = "CFrameData"
+                }
+            },
+            nil
+        )
+    end)
+end
+
+local function mainLoop()
+    local target = getClosestPlayer()
+    if target then
+        shootAt(target)
     end
 end
 
--- ============================================================
--- START THE LOOP
--- ============================================================
-
-RunService.RenderStepped:Connect(function()
+RunService.Heartbeat:Connect(function()
     pcall(mainLoop)
 end)
 
-print("[FFA Ragebot] ✅ Standalone Ragebot is running!")
-print("[FFA Ragebot] Targeting all players in FFA mode.")
+print("[FFA Remote] ✅ RemoteEvent Ragebot is running!")
 
 -- ============================================================
--- TOGGLE WITH A KEY (Press F9 to toggle)
--- ============================================================
-
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.F9 then
-        CONFIG.Enabled = not CONFIG.Enabled
-        print("[FFA Ragebot] Toggled:", CONFIG.Enabled and "ON" or "OFF")
-    end
-end)
-
--- ============================================================
--- END OF STANDALONE RAGEBOT
+-- END OF REMOTEEVENT RAGEBOT
 -- ============================================================
