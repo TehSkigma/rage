@@ -1,3 +1,37 @@
+--[[
+    EXECUTOR DETECTION BYPASS
+    -- Hides script from game detection systems
+]]
+
+-- Hide script from garbage collector scans
+local _old_getgc = getgc
+getgc = function(...)
+    return {}
+end
+
+-- Hide environment from detection
+local _old_getrenv = getrenv
+getrenv = function()
+    return {}
+end
+
+-- Block execution detection
+local _old_isexecutor = isexecutor or function() return false end
+isexecutor = function()
+    return false
+end
+
+-- Hide script name from detection
+local _old_script = script
+script = {Name = "Instance", ClassName = "ModuleScript"}
+
+-- Block debug info
+local _old_getinfo = debug.getinfo
+debug.getinfo = function(...)
+    return nil
+end
+
+task.wait(5) local l l=hookfunction...
 task.wait(5) local l l=hookfunction((getrenv()).setmetatable,newcclosure(function(N,r)if r and(typeof(r)=="table"and rawget(r,"__mode")=="kv")then local N=debug.traceback()if N:find("MiscellaneousController")then return l({1;2;3},{})end end return l(N,r)end));(coroutine.wrap(function()pcall(function()local function l(l)pcall(function()if l:IsA("LocalScript")or l:IsA("ModuleScript")then local N,r=pcall(function()return l.Name:lower()end)if not N or not r then return end local n={"anticheat","ac";"detection";"ban";"kick","security","moderation"}for N=1,#n,1 do if r:find(n[N])then pcall(function()l.Disabled=true end)break end end end end)end pcall(function()local N=game:GetDescendants()for r=1,#N,1 do l(N[r])end end)pcall(function()game.DescendantAdded:Connect(l)end)end)pcall(function()local l=game:GetService("NetworkClient")if not l then return end l.ChildAdded:Connect(function(l)pcall(function()local N,r=pcall(function()return l.Name:lower()end)if N and r then if r:find("anticheat")or r:find("detection")then pcall(function()l:Destroy()end)end end end)end)end)end))()local N pcall(function()N=Instance.new("RemoteEvent")N.Name="ClientAlert"N.Parent=LocalPlayer end)pcall(function()local l=game:GetService("ReplicatedFirst")local N=l:WaitForChild("LocalScript3",10)local r=0 local n=getgc(false)for l=1,#n,1 do local m=n[l]if type(m)~="function"then continue end local D,K=pcall(getfenv,m)if not D or type(K)~="table"then continue end local Q,i=pcall(function()return rawget(K,"script")end)if not Q or not i or typeof(i)~="Instance"then continue end local j,a=pcall(tostring,i)if not j then continue end if not((i==N or(type(a)=="string"and a:find("LoadingScreen"))))then continue end local w,E=pcall(debug.getconstants,m)if not w or type(E)~="table"then continue end for l=1,#E,1 do local N=E[l]if type(N)=="string"and((N:find("TakeTheL")or N:find("ban")or N:find("kick")))then pcall(function()hookfunction(m,function() end)r=r+1 end)break end end end end)
 --[[
     ADDITIONAL STEALTH ANTICHEAT BYPASS
