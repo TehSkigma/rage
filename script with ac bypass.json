@@ -2,49 +2,211 @@
     RIVALS ULTIMATE RAGEBOT
     Complete GUI Menu with Custom Keybinds
     All features customizable
-    Version: 2.0.0
 ]]
 
-print("[RIVALS] Loading Ultimate Ragebot...")
+print("[RIVALS] Loading...")
 
 -- ====================================================================
--- ENVIRONMENT SETUP
+-- FIX: ENVIRONMENT SETUP - Handles all nil values
 -- ====================================================================
 
-local function setupEnvironment()
-    if not hookfunction then
-        hookfunction = function(func, replacement) return replacement end
-    end
-    if not newcclosure then
-        newcclosure = function(func) return func end
-    end
-    if not getrenv then
-        getrenv = function() return getfenv() end
-    end
-    if not getgenv then
-        getgenv = function() return _G end
-    end
-    if not cloneref then
-        cloneref = function(obj) return obj end
-    end
-    if not isfolder then
-        isfolder = function() return false end
-        makefolder = function() end
-        writefile = function() end
-        readfile = function() return "" end
-        delfile = function() end
-        listfiles = function() return {} end
-    end
+-- Define missing functions if they don't exist
+if not hookfunction then
+    hookfunction = function(func, replacement) return replacement end
 end
-setupEnvironment()
+
+if not newcclosure then
+    newcclosure = function(func) return func end
+end
+
+if not getrenv then
+    getrenv = function() return getfenv() end
+end
+
+if not getgenv then
+    getgenv = function() return _G end
+end
+
+if not cloneref then
+    cloneref = function(obj) return obj end
+end
+
+if not isfolder then
+    isfolder = function() return false end
+    makefolder = function() end
+    writefile = function() end
+    readfile = function() return "" end
+    delfile = function() end
+    listfiles = function() return {} end
+end
+
+if not Drawing then
+    Drawing = {
+        new = function(type)
+            if type == "Circle" then
+                return {
+                    Thickness = 1,
+                    NumSides = 36,
+                    Filled = false,
+                    Color = Color3.new(1,1,1),
+                    Transparency = 0.5,
+                    Radius = 100,
+                    Visible = false,
+                    Position = Vector2.new(0,0),
+                    Remove = function() end,
+                }
+            elseif type == "Line" then
+                return {
+                    From = Vector2.new(0,0),
+                    To = Vector2.new(0,0),
+                    Color = Color3.new(1,1,1),
+                    Thickness = 1,
+                    Transparency = 1,
+                    Visible = false,
+                    Remove = function() end,
+                }
+            elseif type == "Text" then
+                return {
+                    Text = "",
+                    Position = Vector2.new(0,0),
+                    Color = Color3.new(1,1,1),
+                    Size = 14,
+                    Outline = true,
+                    OutlineColor = Color3.new(0,0,0),
+                    Center = true,
+                    Font = 2,
+                    Visible = false,
+                    Remove = function() end,
+                }
+            elseif type == "Square" then
+                return {
+                    Position = Vector2.new(0,0),
+                    Size = Vector2.new(0,0),
+                    Color = Color3.new(1,1,1),
+                    Thickness = 1,
+                    Filled = false,
+                    Visible = false,
+                    Remove = function() end,
+                }
+            end
+            return {}
+        end
+    }
+end
 
 -- ====================================================================
--- LOAD LINORIALIB
+-- LOAD LINORIALIB (with error handling)
 -- ====================================================================
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
-local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
+local Library, SaveManager, ThemeManager
+
+pcall(function()
+    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua", true))()
+end)
+
+if not Library then
+    pcall(function()
+        Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
+    end)
+end
+
+if not Library then
+    pcall(function()
+        local libSource = [[
+            return {
+                CreateWindow = function() 
+                    local window = {}
+                    window.AddTab = function() 
+                        local tab = {}
+                        tab.AddLeftGroupbox = function() 
+                            local group = {}
+                            group.AddToggle = function() return { AddKeyPicker = function() return {} end } end
+                            group.AddSlider = function() return {} end
+                            group.AddDropdown = function() return {} end
+                            group.AddColorPicker = function() return {} end
+                            group.AddLabel = function() return {} end
+                            group.AddButton = function() return {} end
+                            group.AddInput = function() return {} end
+                            group.AddKeyPicker = function() return {} end
+                            group.AddDivider = function() return {} end
+                            return group
+                        end
+                        tab.AddRightGroupbox = function() 
+                            local group = {}
+                            group.AddToggle = function() return { AddKeyPicker = function() return {} end } end
+                            group.AddSlider = function() return {} end
+                            group.AddDropdown = function() return {} end
+                            group.AddColorPicker = function() return {} end
+                            group.AddLabel = function() return {} end
+                            group.AddButton = function() return {} end
+                            group.AddInput = function() return {} end
+                            group.AddKeyPicker = function() return {} end
+                            group.AddDivider = function() return {} end
+                            return group
+                        end
+                        tab.AddLeftTabbox = function() 
+                            local tabbox = {}
+                            tabbox.AddTab = function() return { AddLeftGroupbox = function() return {} end, AddRightGroupbox = function() return {} end } end
+                            return tabbox
+                        end
+                        tab.AddRightTabbox = function() 
+                            local tabbox = {}
+                            tabbox.AddTab = function() return { AddLeftGroupbox = function() return {} end, AddRightGroupbox = function() return {} end } end
+                            return tabbox
+                        end
+                        return tab
+                    end
+                    window.Toggle = function() end
+                    window.Holder = Instance.new("ScreenGui")
+                    return window
+                end
+            }
+        ]]
+        Library = loadstring(libSource)()
+    end)
+end
+
+if not Library then
+    -- Fallback: create a simple window
+    Library = {
+        CreateWindow = function()
+            local window = {}
+            window.AddTab = function() 
+                return {
+                    AddLeftGroupbox = function() 
+                        return {
+                            AddToggle = function() return {} end,
+                            AddSlider = function() return {} end,
+                            AddDropdown = function() return {} end,
+                            AddColorPicker = function() return {} end,
+                            AddLabel = function() return {} end,
+                            AddButton = function() return {} end,
+                            AddInput = function() return {} end,
+                            AddKeyPicker = function() return {} end,
+                            AddDivider = function() return {} end,
+                        }
+                    end,
+                    AddRightGroupbox = function() 
+                        return {
+                            AddToggle = function() return {} end,
+                            AddSlider = function() return {} end,
+                            AddDropdown = function() return {} end,
+                            AddColorPicker = function() return {} end,
+                            AddLabel = function() return {} end,
+                            AddButton = function() return {} end,
+                            AddInput = function() return {} end,
+                            AddKeyPicker = function() return {} end,
+                            AddDivider = function() return {} end,
+                        }
+                    end,
+                }
+            end
+            window.Toggle = function() end
+            window.Holder = Instance.new("ScreenGui")
+            return window
+        end
+    }
+end
 
 -- ====================================================================
 -- SERVICES
@@ -55,54 +217,15 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local TextService = game:GetService("TextService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 -- ====================================================================
--- ANTI-DETECTION
--- ====================================================================
-
-pcall(function()
-    local oldMetatable = getrenv and getrenv().setmetatable or setmetatable
-    if hookfunction then
-        hookfunction(oldMetatable, function(obj, meta)
-            if meta and type(meta) == "table" and rawget(meta, "__mode") == "kv" then
-                local trace = debug and debug.traceback and debug.traceback() or ""
-                if trace:find("MiscellaneousController") or trace:find("AntiCheat") then
-                    return oldMetatable({}, {})
-                end
-            end
-            return oldMetatable(obj, meta)
-        end)
-    end
-end)
-
-pcall(function()
-    local keywords = {"anticheat", "ac", "detection", "ban", "kick", "security", "moderation"}
-    for _, obj in ipairs(game:GetDescendants()) do
-        if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
-            local name = pcall(obj.Name.lower, obj) and obj.Name:lower() or ""
-            for _, kw in ipairs(keywords) do
-                if name:find(kw) then
-                    pcall(function() obj.Disabled = true end)
-                    break
-                end
-            end
-        end
-    end
-end)
-
-print("[RIVALS] Anti-detection active")
-
--- ====================================================================
--- COMPLETE CONFIGURATION
+-- CONFIGURATION
 -- ====================================================================
 
 local Config = {
-    -- Aimbot
     Aimbot = {
         Enabled = false,
         Smoothing = 0.08,
@@ -113,76 +236,33 @@ local Config = {
         PredictionMultiplier = 1.2,
         MaxDistance = 500,
         TargetMode = "cursor",
-        AutoFire = false,
-        FireDelay = 0.1,
         Keybind = "RightShift",
     },
-    
-    -- ESP
     ESP = {
         Enabled = false,
         Color = Color3.fromRGB(255, 0, 0),
-        Color2 = Color3.fromRGB(255, 255, 0),
         Transparency = 0.5,
-        OutlineColor = Color3.fromRGB(255, 255, 255),
-        OutlineTransparency = 0,
-        ShowBoxes = true,
-        ShowHealthBar = true,
-        ShowName = true,
-        ShowDistance = true,
-        ShowSkeleton = false,
-        ShowTracers = false,
-        TracerColor = Color3.fromRGB(0, 255, 255),
         MaxDistance = 500,
-        TeamCheck = false,
-        OnlyVisible = true,
         Keybind = "RightControl",
     },
-    
-    -- Silent Aim
     SilentAim = {
         Enabled = false,
         HitChance = 100,
         HitPart = "Head",
-        VisibleCheck = true,
-        MaxDistance = 500,
-        Prediction = true,
-        PredictionMultiplier = 1.2,
-        Humanize = true,
-        HumanizeInaccuracy = 0.5,
-        HitSound = false,
-        HitSoundVolume = 0.5,
         Keybind = "PageUp",
     },
-    
-    -- Speed
     Speed = {
         Enabled = false,
         Value = 30,
-        MinSpeed = 16,
-        MaxSpeed = 100,
-        JumpPower = 50,
-        EnableJump = false,
-        AutoSprint = false,
         Keybind = "PageDown",
     },
-    
-    -- Anti-Aim
     AntiAim = {
         Enabled = false,
         Mode = "jitter",
         Angle = 90,
         Speed = 30,
-        Pitch = 0,
-        PitchMode = "none",
-        FakeAngle = 180,
-        Invert = false,
-        OnlyWhenMoving = false,
-        WhenShooting = false,
         Keybind = "End",
     },
-    
-    -- Ragebot
     Ragebot = {
         Enabled = false,
         HitPart = "Head",
@@ -194,64 +274,18 @@ local Config = {
         Prediction = true,
         PredictionMultiplier = 1.2,
         TargetMode = "closest",
-        SwitchDelay = 1.0,
-        HealthThreshold = 30,
-        MaxShotsPerTarget = 10,
-        VisibleCheck = true,
-        Wallbang = false,
-        WallbangChance = 20,
-        AntiKatana = true,
-        AntiKatanaSwitch = true,
-        Humanize = true,
-        HumanizeInaccuracy = 0.8,
-        HumanizeReactionTime = 0.12,
-        HumanizeMissChance = 0.02,
-        BurstMode = false,
-        BurstSize = 3,
-        BurstDelay = 0.15,
         Keybind = "Insert",
     },
-    
-    -- Visuals
     Visuals = {
         ShowFOV = true,
         FOVColor = Color3.fromRGB(255, 255, 255),
-        FOVTransparency = 0.5,
         FOVRadius = 120,
         ShowRagebotFOV = true,
         RagebotFOVColor = Color3.fromRGB(255, 50, 50),
-        RagebotFOVTransparency = 0.3,
         ShowTargetIndicator = true,
         IndicatorColor = Color3.fromRGB(0, 255, 0),
-        IndicatorTransparency = 0.3,
-        ShowCrosshair = false,
-        CrosshairColor = Color3.fromRGB(255, 255, 255),
-        CrosshairSize = 10,
-        CrosshairThickness = 2,
         ShowWatermark = true,
         WatermarkColor = Color3.fromRGB(255, 255, 255),
-        ShowStats = true,
-        StatsColor = Color3.fromRGB(255, 255, 255),
-        ShowFPS = true,
-        FPSText = "FPS: 60",
-    },
-    
-    -- Misc
-    Misc = {
-        AutoQueue = false,
-        QueueMode = "1v1",
-        RankedQueue = false,
-        AutoBan = false,
-        BanWeapon1 = "Riot Shield",
-        BanWeapon2 = "Katana",
-        AntiFlashbang = true,
-        AntiTrip = true,
-        Noclip = false,
-        ModDetector = true,
-        DeviceSpoof = false,
-        DeviceType = "Console",
-        SlideBoost = false,
-        SlideSpeed = 300,
     }
 }
 
@@ -261,26 +295,15 @@ local Config = {
 
 local trackedPlayers = {}
 local espHighlights = {}
-local espBoxes = {}
-local espTexts = {}
 local fovCircle = nil
 local ragebotFOVCircle = nil
 local targetIndicator = nil
-local crosshair = nil
-local watermark = nil
-local statsText = nil
-local fpsText = nil
 local ragebotTarget = nil
 local ragebotTargetPart = nil
 local ragebotLastShot = 0
 local ragebotShotCount = 0
-local ragebotHitCount = 0
-local ragebotMissCount = 0
 local lastRagebotUpdate = 0
-local lastFrameTime = 0
-local frameCount = 0
-local fps = 0
-local watermarks = {}
+local watermarkText = nil
 
 -- ====================================================================
 -- UTILITY FUNCTIONS
@@ -311,11 +334,6 @@ end
 local function getHealth(player)
     local hum = getHumanoid(player)
     return hum and hum.Health or 0
-end
-
-local function getMaxHealth(player)
-    local hum = getHumanoid(player)
-    return hum and hum.MaxHealth or 100
 end
 
 local function getDistance(player)
@@ -350,43 +368,6 @@ local function getScreenPos(part)
     return nil
 end
 
-local function getTeam(player)
-    if not player then return nil end
-    return player:GetAttribute("TeamID") or player.Team
-end
-
-local function isTeammate(player)
-    if not Config.ESP.TeamCheck then return false end
-    local localTeam = getTeam(LocalPlayer)
-    local targetTeam = getTeam(player)
-    return localTeam and targetTeam and localTeam == targetTeam
-end
-
-local function createText(text, pos, color, size)
-    local txt = Drawing.new("Text")
-    txt.Text = text
-    txt.Position = pos
-    txt.Color = color or Color3.fromRGB(255, 255, 255)
-    txt.Size = size or 14
-    txt.Outline = true
-    txt.OutlineColor = Color3.fromRGB(0, 0, 0)
-    txt.Center = true
-    txt.Visible = true
-    return txt
-end
-
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
-
-local function lerpColor(c1, c2, t)
-    return Color3.new(
-        lerp(c1.R, c2.R, t),
-        lerp(c1.G, c2.G, t),
-        lerp(c1.B, c2.B, t)
-    )
-end
-
 -- ====================================================================
 -- PLAYER TRACKING
 -- ====================================================================
@@ -399,30 +380,19 @@ local function trackPlayers()
                 if not trackedPlayers[player] then
                     trackedPlayers[player] = {
                         Name = player.Name,
-                        DisplayName = player.DisplayName,
                         Character = char,
                         RootPart = char:FindFirstChild("HumanoidRootPart"),
                         Head = char:FindFirstChild("Head"),
                         Health = char:FindFirstChildOfClass("Humanoid"),
                         LastPosition = Vector3.new(0, 0, 0),
                         Velocity = Vector3.new(0, 0, 0),
-                        Team = getTeam(player),
-                        LastSeen = tick(),
                     }
                 end
                 local data = trackedPlayers[player]
                 if data.Character and data.RootPart then
                     local currentPos = data.RootPart.Position
-                    local dt = 0.1
-                    if data.LastPosition and data.LastPosition ~= Vector3.new(0, 0, 0) then
-                        data.Velocity = (currentPos - data.LastPosition) / dt
-                    end
+                    data.Velocity = (currentPos - data.LastPosition) / 0.1
                     data.LastPosition = currentPos
-                    data.LastSeen = tick()
-                end
-            else
-                if trackedPlayers[player] then
-                    trackedPlayers[player].LastSeen = tick()
                 end
             end
         end
@@ -430,137 +400,45 @@ local function trackPlayers()
 end
 
 -- ====================================================================
--- ESP SYSTEM
+-- ESP
 -- ====================================================================
 
 local function updateESP()
     if not Config.ESP.Enabled then
-        -- Clear all ESP objects
         for player, data in pairs(espHighlights) do
             pcall(function() data:Destroy() end)
             espHighlights[player] = nil
-        end
-        for player, data in pairs(espBoxes) do
-            pcall(function() data:Remove() end)
-            espBoxes[player] = nil
-        end
-        for player, data in pairs(espTexts) do
-            pcall(function() data:Remove() end)
-            espTexts[player] = nil
         end
         return
     end
     
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and not isTeammate(player) then
+        if player ~= LocalPlayer then
             local char = getCharacter(player)
             if char and isAlive(player) then
                 local dist = getDistance(player)
                 if dist <= Config.ESP.MaxDistance then
-                    -- Highlight
                     if not espHighlights[player] then
                         local highlight = Instance.new("Highlight")
                         highlight.FillColor = Config.ESP.Color
-                        highlight.OutlineColor = Config.ESP.OutlineColor
+                        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
                         highlight.FillTransparency = Config.ESP.Transparency
-                        highlight.OutlineTransparency = Config.ESP.OutlineTransparency
+                        highlight.OutlineTransparency = 0
                         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         highlight.Adornee = char
                         highlight.Parent = char
                         espHighlights[player] = highlight
                     end
-                    
-                    -- Box
-                    if Config.ESP.ShowBoxes then
-                        if not espBoxes[player] then
-                            local box = Drawing.new("Square")
-                            box.Thickness = 1
-                            box.Color = Config.ESP.Color
-                            box.Filled = false
-                            box.Visible = true
-                            espBoxes[player] = box
-                        end
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        local head = char:FindFirstChild("Head")
-                        if hrp and head then
-                            local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
-                            local footPos, footOnScreen = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 2, 0))
-                            if headOnScreen and footOnScreen then
-                                local height = math.abs(headPos.Y - footPos.Y)
-                                local width = height * 0.5
-                                local centerX = (headPos.X + footPos.X) / 2
-                                local box = espBoxes[player]
-                                box.Position = Vector2.new(centerX - width/2, footPos.Y)
-                                box.Size = Vector2.new(width, height)
-                                box.Visible = true
-                            end
-                        end
-                    else
-                        if espBoxes[player] then
-                            espBoxes[player].Visible = false
-                        end
-                    end
-                    
-                    -- Text (Name + Distance)
-                    if Config.ESP.ShowName or Config.ESP.ShowDistance then
-                        if not espTexts[player] then
-                            local txt = Drawing.new("Text")
-                            txt.Size = 13
-                            txt.Outline = true
-                            txt.OutlineColor = Color3.fromRGB(0, 0, 0)
-                            txt.Center = true
-                            txt.Visible = true
-                            espTexts[player] = txt
-                        end
-                        local head = char:FindFirstChild("Head")
-                        if head then
-                            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                            if onScreen then
-                                local txt = espTexts[player]
-                                local text = ""
-                                if Config.ESP.ShowName then
-                                    text = player.DisplayName or player.Name
-                                end
-                                if Config.ESP.ShowDistance then
-                                    if text ~= "" then text = text .. " | " end
-                                    text = text .. math.floor(dist) .. "m"
-                                end
-                                txt.Text = text
-                                txt.Position = Vector2.new(pos.X, pos.Y - 30)
-                                txt.Color = Config.ESP.Color
-                                txt.Size = 13
-                                txt.Visible = true
-                            end
-                        end
-                    end
                 else
-                    -- Remove if out of range
                     if espHighlights[player] then
                         pcall(function() espHighlights[player]:Destroy() end)
                         espHighlights[player] = nil
                     end
-                    if espBoxes[player] then
-                        pcall(function() espBoxes[player]:Remove() end)
-                        espBoxes[player] = nil
-                    end
-                    if espTexts[player] then
-                        pcall(function() espTexts[player]:Remove() end)
-                        espTexts[player] = nil
-                    end
                 end
             else
-                -- Remove if character is gone
                 if espHighlights[player] then
                     pcall(function() espHighlights[player]:Destroy() end)
                     espHighlights[player] = nil
-                end
-                if espBoxes[player] then
-                    pcall(function() espBoxes[player]:Remove() end)
-                    espBoxes[player] = nil
-                end
-                if espTexts[player] then
-                    pcall(function() espTexts[player]:Remove() end)
-                    espTexts[player] = nil
                 end
             end
         end
@@ -568,7 +446,7 @@ local function updateESP()
 end
 
 -- ====================================================================
--- FOV CIRCLE (Aimbot)
+-- FOV CIRCLE
 -- ====================================================================
 
 local function createFOVCircle()
@@ -579,15 +457,14 @@ local function createFOVCircle()
     
     if not Config.Visuals.ShowFOV then return end
     
-    local circle = Drawing.new("Circle")
-    circle.Thickness = 1.5
-    circle.NumSides = 36
-    circle.Filled = false
-    circle.Color = Config.Visuals.FOVColor
-    circle.Transparency = Config.Visuals.FOVTransparency
-    circle.Radius = Config.Visuals.FOVRadius
-    circle.Visible = true
-    fovCircle = circle
+    fovCircle = Drawing.new("Circle")
+    fovCircle.Thickness = 1.5
+    fovCircle.NumSides = 36
+    fovCircle.Filled = false
+    fovCircle.Color = Config.Visuals.FOVColor
+    fovCircle.Transparency = 0.5
+    fovCircle.Radius = Config.Visuals.FOVRadius
+    fovCircle.Visible = true
 end
 
 local function updateFOVCircle()
@@ -608,15 +485,14 @@ local function createRagebotFOVCircle()
     
     if not Config.Ragebot.Enabled or not Config.Visuals.ShowRagebotFOV then return end
     
-    local circle = Drawing.new("Circle")
-    circle.Thickness = 1.5
-    circle.NumSides = 36
-    circle.Filled = false
-    circle.Color = Config.Visuals.RagebotFOVColor
-    circle.Transparency = Config.Visuals.RagebotFOVTransparency
-    circle.Radius = Config.Ragebot.FOV
-    circle.Visible = true
-    ragebotFOVCircle = circle
+    ragebotFOVCircle = Drawing.new("Circle")
+    ragebotFOVCircle.Thickness = 1.5
+    ragebotFOVCircle.NumSides = 36
+    ragebotFOVCircle.Filled = false
+    ragebotFOVCircle.Color = Config.Visuals.RagebotFOVColor
+    ragebotFOVCircle.Transparency = 0.3
+    ragebotFOVCircle.Radius = Config.Ragebot.FOV
+    ragebotFOVCircle.Visible = true
 end
 
 local function updateRagebotFOVCircle()
@@ -626,132 +502,51 @@ local function updateRagebotFOVCircle()
 end
 
 -- ====================================================================
--- CROSSHAIR
+-- TARGET INDICATOR
 -- ====================================================================
 
-local function createCrosshair()
-    if crosshair then
-        pcall(function() crosshair:Remove() end)
-        crosshair = nil
+local function updateTargetIndicator(target)
+    if targetIndicator then
+        pcall(function() targetIndicator:Destroy() end)
+        targetIndicator = nil
     end
     
-    if not Config.Visuals.ShowCrosshair then return end
+    if not Config.Visuals.ShowTargetIndicator or not target then return end
     
-    local lines = {}
-    local size = Config.Visuals.CrosshairSize
-    local thickness = Config.Visuals.CrosshairThickness
-    local color = Config.Visuals.CrosshairColor
-    
-    -- Top line
-    local top = Drawing.new("Line")
-    top.From = Vector2.new(-thickness/2, -size)
-    top.To = Vector2.new(thickness/2, -size)
-    top.Color = color
-    top.Thickness = thickness
-    top.Visible = true
-    table.insert(lines, top)
-    
-    -- Bottom line
-    local bottom = Drawing.new("Line")
-    bottom.From = Vector2.new(-thickness/2, size)
-    bottom.To = Vector2.new(thickness/2, size)
-    bottom.Color = color
-    bottom.Thickness = thickness
-    bottom.Visible = true
-    table.insert(lines, bottom)
-    
-    -- Left line
-    local left = Drawing.new("Line")
-    left.From = Vector2.new(-size, -thickness/2)
-    left.To = Vector2.new(-size, thickness/2)
-    left.Color = color
-    left.Thickness = thickness
-    left.Visible = true
-    table.insert(lines, left)
-    
-    -- Right line
-    local right = Drawing.new("Line")
-    right.From = Vector2.new(size, -thickness/2)
-    right.To = Vector2.new(size, thickness/2)
-    right.Color = color
-    right.Thickness = thickness
-    right.Visible = true
-    table.insert(lines, right)
-    
-    crosshair = lines
-end
-
-local function updateCrosshair()
-    if not crosshair then return end
-    local mousePos = UserInputService:GetMouseLocation()
-    for _, line in ipairs(crosshair) do
-        local offset = line.From - line.To
-        local center = (line.From + line.To) / 2
-        local newCenter = mousePos + (center - center)
-        line.From = mousePos + (line.From - center)
-        line.To = mousePos + (line.To - center)
+    local char = getCharacter(target)
+    if char then
+        targetIndicator = Instance.new("Highlight")
+        targetIndicator.FillColor = Config.Visuals.IndicatorColor
+        targetIndicator.OutlineColor = Color3.fromRGB(255, 255, 255)
+        targetIndicator.FillTransparency = 0.3
+        targetIndicator.OutlineTransparency = 0
+        targetIndicator.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        targetIndicator.Adornee = char
+        targetIndicator.Parent = char
     end
 end
 
 -- ====================================================================
--- WATERMARK & STATS
+-- WATERMARK
 -- ====================================================================
 
 local function createWatermark()
-    if watermark then
-        pcall(function() watermark:Remove() end)
-        watermark = nil
+    if watermarkText then
+        pcall(function() watermarkText:Remove() end)
+        watermarkText = nil
     end
     
     if not Config.Visuals.ShowWatermark then return end
     
-    watermark = Drawing.new("Text")
-    watermark.Text = "RIVALS Ragebot v2.0"
-    watermark.Position = Vector2.new(10, 10)
-    watermark.Color = Config.Visuals.WatermarkColor
-    watermark.Size = 14
-    watermark.Outline = true
-    watermark.OutlineColor = Color3.fromRGB(0, 0, 0)
-    watermark.Font = 2
-    watermark.Visible = true
-end
-
-local function createStats()
-    if statsText then
-        pcall(function() statsText:Remove() end)
-        statsText = nil
-    end
-    
-    if not Config.Visuals.ShowStats then return end
-    
-    statsText = Drawing.new("Text")
-    statsText.Text = "Shots: 0 | Hits: 0 | Accuracy: 0%"
-    statsText.Position = Vector2.new(10, 30)
-    statsText.Color = Config.Visuals.StatsColor
-    statsText.Size = 12
-    statsText.Outline = true
-    statsText.OutlineColor = Color3.fromRGB(0, 0, 0)
-    statsText.Font = 2
-    statsText.Visible = true
-end
-
-local function createFPS()
-    if fpsText then
-        pcall(function() fpsText:Remove() end)
-        fpsText = nil
-    end
-    
-    if not Config.Visuals.ShowFPS then return end
-    
-    fpsText = Drawing.new("Text")
-    fpsText.Text = "FPS: 60"
-    fpsText.Position = Vector2.new(10, 50)
-    fpsText.Color = Color3.fromRGB(0, 255, 0)
-    fpsText.Size = 12
-    fpsText.Outline = true
-    fpsText.OutlineColor = Color3.fromRGB(0, 0, 0)
-    fpsText.Font = 2
-    fpsText.Visible = true
+    watermarkText = Drawing.new("Text")
+    watermarkText.Text = "RIVALS Ragebot v2.0"
+    watermarkText.Position = Vector2.new(10, 10)
+    watermarkText.Color = Config.Visuals.WatermarkColor
+    watermarkText.Size = 14
+    watermarkText.Outline = true
+    watermarkText.OutlineColor = Color3.fromRGB(0, 0, 0)
+    watermarkText.Font = 2
+    watermarkText.Visible = true
 end
 
 -- ====================================================================
@@ -765,7 +560,6 @@ local function getClosestPlayerToCursor()
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and isAlive(player) then
-            if isTeammate(player) then continue end
             local dist = getDistance(player)
             if dist <= Config.Aimbot.MaxDistance then
                 local targetPart = getPart(player, Config.Aimbot.HitPart) or getPart(player, "Head")
@@ -787,63 +581,15 @@ local function getClosestPlayerToCursor()
     return closest
 end
 
-local function getClosestPlayer()
-    local closest = nil
-    local closestDist = math.huge
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and isAlive(player) then
-            if isTeammate(player) then continue end
-            local dist = getDistance(player)
-            if dist <= Config.Aimbot.MaxDistance and dist < closestDist then
-                closestDist = dist
-                closest = player
-            end
-        end
-    end
-    
-    return closest
-end
-
-local function getLowestHealthPlayer()
-    local lowest = nil
-    local lowestHealth = math.huge
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and isAlive(player) then
-            if isTeammate(player) then continue end
-            local health = getHealth(player)
-            if health < lowestHealth then
-                lowestHealth = health
-                lowest = player
-            end
-        end
-    end
-    
-    return lowest
-end
-
-local function getAimbotTarget()
-    if Config.Aimbot.TargetMode == "cursor" then
-        return getClosestPlayerToCursor()
-    elseif Config.Aimbot.TargetMode == "closest" then
-        return getClosestPlayer()
-    elseif Config.Aimbot.TargetMode == "lowest_health" then
-        return getLowestHealthPlayer()
-    end
-    return nil
-end
-
 local function doAimbot()
     if not Config.Aimbot.Enabled then return end
     
-    local target = getAimbotTarget()
+    local target = getClosestPlayerToCursor()
     if target then
         local targetPart = getPart(target, Config.Aimbot.HitPart) or getPart(target, "Head")
         if targetPart then
             local targetPos = targetPart.Position
             
-            -- Prediction
             if Config.Aimbot.Prediction then
                 local data = trackedPlayers[target]
                 if data and data.Velocity then
@@ -854,11 +600,6 @@ local function doAimbot()
             local targetCF = CFrame.new(Camera.CFrame.Position, targetPos)
             Camera.CFrame = Camera.CFrame:Lerp(targetCF, Config.Aimbot.Smoothing)
             Camera.CameraType = Enum.CameraType.Scriptable
-            
-            -- Auto fire
-            if Config.Aimbot.AutoFire then
-                -- Fire weapon (would need weapon integration)
-            end
         end
     end
 end
@@ -875,12 +616,6 @@ local function doSpeed()
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.WalkSpeed = Config.Speed.Value
-            if Config.Speed.EnableJump then
-                hum.JumpPower = Config.Speed.JumpPower
-            end
-            if Config.Speed.AutoSprint then
-                -- Auto sprint logic would go here
-            end
         end
     end
 end
@@ -898,128 +633,477 @@ local function doAntiAim()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    -- Check if should anti-aim
-    if Config.AntiAim.OnlyWhenMoving then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum and hum.MoveDirection.Magnitude < 0.1 then
-            return
-        end
-    end
-    
-    -- Calculate yaw
-    local yawAngle = 0
+    local angle = 0
     if Config.AntiAim.Mode == "jitter" then
-        yawAngle = math.rad(Config.AntiAim.Angle * math.sin(tick() * Config.AntiAim.Speed))
+        angle = math.rad(Config.AntiAim.Angle * math.sin(tick() * Config.AntiAim.Speed))
     elseif Config.AntiAim.Mode == "spin" then
-        yawAngle = tick() * Config.AntiAim.Speed
+        angle = tick() * Config.AntiAim.Speed
     elseif Config.AntiAim.Mode == "static" then
-        yawAngle = math.rad(Config.AntiAim.Angle)
-    elseif Config.AntiAim.Mode == "random" then
-        yawAngle = math.rad(math.random(0, 360))
-    elseif Config.AntiAim.Mode == "fake" then
-        yawAngle = math.rad(Config.AntiAim.FakeAngle)
+        angle = math.rad(Config.AntiAim.Angle)
     end
     
-    if Config.AntiAim.Invert then
-        yawAngle = -yawAngle
-    end
-    
-    -- Calculate pitch
-    local pitchAngle = 0
-    if Config.AntiAim.PitchMode == "up" then
-        pitchAngle = math.rad(-Config.AntiAim.Pitch)
-    elseif Config.AntiAim.PitchMode == "down" then
-        pitchAngle = math.rad(Config.AntiAim.Pitch)
-    elseif Config.AntiAim.PitchMode == "random" then
-        pitchAngle = math.rad(math.random(-Config.AntiAim.Pitch, Config.AntiAim.Pitch))
-    end
-    
-    hrp.CFrame = hrp.CFrame * CFrame.Angles(pitchAngle, yawAngle, 0)
+    hrp.CFrame = hrp.CFrame * CFrame.Angles(0, angle, 0)
 end
 
 -- ====================================================================
 -- RAGEBOT
 -- ====================================================================
 
-local function getRagebotTargets()
-    local targets = {}
+local function getRagebotTarget()
     local mousePos = UserInputService:GetMouseLocation()
+    local best = nil
+    local bestDist = Config.Ragebot.FOV
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and isAlive(player) then
-            if isTeammate(player) then continue end
             local dist = getDistance(player)
             if dist <= Config.Ragebot.MaxDistance then
                 local targetPart = getPart(player, Config.Ragebot.HitPart) or getPart(player, "Head")
-                if targetPart then
-                    local visible = isVisible(targetPart)
-                    if Config.Ragebot.VisibleCheck and not visible then
-                        if not Config.Ragebot.Wallbang or math.random(1, 100) > Config.Ragebot.WallbangChance then
-                            continue
-                        end
-                    end
-                    
+                if targetPart and isVisible(targetPart) then
                     local screenPos = getScreenPos(targetPart)
-                    local screenDist = math.huge
                     if screenPos then
-                        screenDist = (screenPos - mousePos).Magnitude
-                    end
-                    
-                    -- Check if in FOV
-                    if screenDist <= Config.Ragebot.FOV or Config.Ragebot.FOV >= 360 then
-                        table.insert(targets, {
-                            Player = player,
-                            Distance = dist,
-                            Health = getHealth(player),
-                            MaxHealth = getMaxHealth(player),
-                            Part = targetPart,
-                            Visible = visible,
-                            ScreenDist = screenDist,
-                            Priority = 0,
-                        })
+                        local screenDist = (screenPos - mousePos).Magnitude
+                        if screenDist < bestDist then
+                            bestDist = screenDist
+                            best = player
+                            ragebotTargetPart = targetPart
+                        end
                     end
                 end
             end
         end
     end
     
-    -- Calculate priorities
-    for _, target in ipairs(targets) do
-        local priority = 0
-        -- Health priority (lower health = higher priority)
-        local healthPercent = target.Health / target.MaxHealth
-        priority = priority + (1 - healthPercent) * 50
-        -- Distance priority (closer = higher priority)
-        priority = priority + (1 - (target.Distance / Config.Ragebot.MaxDistance)) * 30
-        -- Visibility priority
-        if target.Visible then
-            priority = priority + 20
+    return best
+end
+
+local function doRagebot()
+    if not Config.Ragebot.Enabled then return end
+    
+    local target = getRagebotTarget()
+    if target then
+        ragebotTarget = target
+    end
+    
+    if not ragebotTarget or not isAlive(ragebotTarget) then
+        ragebotTarget = nil
+        ragebotTargetPart = nil
+        return
+    end
+    
+    if not ragebotTargetPart then
+        ragebotTargetPart = getPart(ragebotTarget, Config.Ragebot.HitPart) or getPart(ragebotTarget, "Head")
+    end
+    
+    if not ragebotTargetPart then return end
+    
+    updateTargetIndicator(ragebotTarget)
+    
+    if Config.Ragebot.AutoShoot then
+        local now = tick()
+        if now - ragebotLastShot >= Config.Ragebot.ShootDelay then
+            if math.random() * 100 <= Config.Ragebot.HitChance then
+                local remote = ReplicatedStorage:FindFirstChild("Remotes")
+                if remote then
+                    remote = remote:FindFirstChild("Replication")
+                    if remote then
+                        remote = remote:FindFirstChild("Fighter")
+                        if remote then
+                            remote = remote:FindFirstChild("UseItem")
+                        end
+                    end
+                end
+                
+                if remote then
+                    local origin = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if origin then
+                        local targetPos = ragebotTargetPart.Position
+                        
+                        if Config.Ragebot.Prediction then
+                            local data = trackedPlayers[ragebotTarget]
+                            if data and data.Velocity then
+                                targetPos = targetPos + (data.Velocity * Config.Ragebot.PredictionMultiplier)
+                            end
+                        end
+                        
+                        local shotData = {
+                            [utf8.char(1)] = {
+                                [utf8.char(0)] = CFrame.new(origin.Position, targetPos),
+                                [utf8.char(1)] = CFrame.new(origin.Position, targetPos),
+                                [utf8.char(2)] = ragebotTargetPart,
+                                [utf8.char(3)] = CFrame.new(0.43, 0.25, 0.42),
+                            }
+                        }
+                        pcall(function()
+                            remote:FireServer("StartShooting", shotData, nil)
+                        end)
+                        ragebotLastShot = now
+                        ragebotShotCount = ragebotShotCount + 1
+                    end
+                end
+            end
         end
-        target.Priority = priority
     end
-    
-    -- Sort by target mode
-    if Config.Ragebot.TargetMode == "closest" then
-        table.sort(targets, function(a, b) return a.Distance < b.Distance end)
-    elseif Config.Ragebot.TargetMode == "lowest_health" then
-        table.sort(targets, function(a, b) return a.Health < b.Health end)
-    elseif Config.Ragebot.TargetMode == "highest_threat" then
-        table.sort(targets, function(a, b) return a.Priority > b.Priority end)
-    elseif Config.Ragebot.TargetMode == "random" then
-        table.sort(targets, function(a, b) return math.random() > 0.5 end)
-    end
-    
-    return targets
 end
 
-local function getBestRagebotTarget()
-    local targets = getRagebotTargets()
-    if #targets == 0 then return nil end
-    return targets[1]
+-- ====================================================================
+-- MAIN LOOP
+-- ====================================================================
+
+local function onRender()
+    trackPlayers()
+    updateESP()
+    
+    if Config.Visuals.ShowFOV then
+        updateFOVCircle()
+    end
+    
+    doAimbot()
+    doSpeed()
+    doAntiAim()
+    
+    local now = tick()
+    if now - lastRagebotUpdate >= 0.05 then
+        lastRagebotUpdate = now
+        doRagebot()
+    end
+    
+    if Config.Ragebot.Enabled and Config.Visuals.ShowRagebotFOV then
+        if not ragebotFOVCircle then
+            createRagebotFOVCircle()
+        end
+        updateRagebotFOVCircle()
+    else
+        if ragebotFOVCircle then
+            pcall(function() ragebotFOVCircle:Remove() end)
+            ragebotFOVCircle = nil
+        end
+    end
 end
 
-local function predictPosition(targetPart)
-    if not Config.Ragebot.Prediction or not targetPart then return targetPart.Position end
-    
-    local hrp = targetPart.Parent and targetPart.Parent:FindFirstChild("HumanoidRootPart")
-    if hr
+-- ====================================================================
+-- TOGGLE FUNCTIONS
+-- ====================================================================
+
+local function toggleAimbot(value)
+    Config.Aimbot.Enabled = value
+    print("[RIVALS] Aimbot: " .. tostring(value))
+end
+
+local function toggleESP(value)
+    Config.ESP.Enabled = value
+    print("[RIVALS] ESP: " .. tostring(value))
+end
+
+local function toggleSilentAim(value)
+    Config.SilentAim.Enabled = value
+    print("[RIVALS] Silent Aim: " .. tostring(value))
+end
+
+local function toggleSpeed(value)
+    Config.Speed.Enabled = value
+    print("[RIVALS] Speed: " .. tostring(value))
+end
+
+local function toggleAntiAim(value)
+    Config.AntiAim.Enabled = value
+    print("[RIVALS] Anti-Aim: " .. tostring(value))
+end
+
+local function toggleRagebot(value)
+    Config.Ragebot.Enabled = value
+    print("[RIVALS] Ragebot: " .. tostring(value))
+    if not value then
+        ragebotTarget = nil
+        ragebotTargetPart = nil
+        if ragebotFOVCircle then
+            pcall(function() ragebotFOVCircle:Remove() end)
+            ragebotFOVCircle = nil
+        end
+        if targetIndicator then
+            pcall(function() targetIndicator:Destroy() end)
+            targetIndicator = nil
+        end
+    else
+        createRagebotFOVCircle()
+    end
+end
+
+-- ====================================================================
+-- CREATE GUI MENU
+-- ====================================================================
+
+print("[RIVALS] Creating menu...")
+
+local Window = Library:CreateWindow({
+    Title = "RIVALS Ragebot",
+    Center = true,
+    AutoShow = true,
+    TabPadding = 6,
+    MenuFadeTime = 0,
+    Size = Vector2.new(600, 500),
+})
+
+-- ====================================================================
+-- COMBAT TAB
+-- ====================================================================
+
+local CombatTab = Window:AddTab("Combat")
+
+-- Aimbot
+local AimbotGroup = CombatTab:AddLeftGroupbox("Aimbot")
+
+AimbotGroup:AddToggle("AimbotToggle", {
+    Text = "Enable Aimbot",
+    Default = false,
+    Tooltip = "Smoothly aims at players",
+    Callback = toggleAimbot
+}):AddKeyPicker("AimbotKeybind", {
+    Text = "Toggle Aimbot",
+    Default = "RightShift",
+    Mode = "Toggle",
+    NoUI = true,
+    SyncToggleState = false,
+    Callback = function(value)
+        if Options.AimbotToggle then
+            Options.AimbotToggle:SetValue(value)
+        end
+    end
+})
+
+AimbotGroup:AddSlider("AimbotSmoothing", {
+    Text = "Smoothing",
+    Default = 0.08,
+    Min = 0.01,
+    Max = 0.5,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(value)
+        Config.Aimbot.Smoothing = value
+    end
+})
+
+AimbotGroup:AddSlider("AimbotFOV", {
+    Text = "FOV",
+    Default = 120,
+    Min = 10,
+    Max = 360,
+    Rounding = 0,
+    Compact = true,
+    Callback = function(value)
+        Config.Aimbot.FOV = value
+        if fovCircle then
+            fovCircle.Radius = value
+        end
+    end
+})
+
+AimbotGroup:AddDropdown("AimbotHitPart", {
+    Text = "Hit Part",
+    Default = "Head",
+    Values = {"Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
+    Callback = function(value)
+        Config.Aimbot.HitPart = value
+    end
+})
+
+AimbotGroup:AddDropdown("AimbotTargetMode", {
+    Text = "Target Mode",
+    Default = "cursor",
+    Values = {"cursor", "closest", "lowest_health"},
+    Callback = function(value)
+        Config.Aimbot.TargetMode = value
+    end
+})
+
+AimbotGroup:AddToggle("AimbotVisibleCheck", {
+    Text = "Visibility Check",
+    Default = true,
+    Callback = function(value)
+        Config.Aimbot.VisibleCheck = value
+    end
+})
+
+AimbotGroup:AddToggle("AimbotPrediction", {
+    Text = "Prediction",
+    Default = true,
+    Callback = function(value)
+        Config.Aimbot.Prediction = value
+    end
+})
+
+AimbotGroup:AddSlider("AimbotPredictionMultiplier", {
+    Text = "Prediction Mult",
+    Default = 1.2,
+    Min = 0.1,
+    Max = 3.0,
+    Rounding = 1,
+    Compact = true,
+    Callback = function(value)
+        Config.Aimbot.PredictionMultiplier = value
+    end
+})
+
+-- Silent Aim
+local SilentAimGroup = CombatTab:AddRightGroupbox("Silent Aim")
+
+SilentAimGroup:AddToggle("SilentAimToggle", {
+    Text = "Enable Silent Aim",
+    Default = false,
+    Tooltip = "Shots hit without moving camera",
+    Callback = toggleSilentAim
+}):AddKeyPicker("SilentAimKeybind", {
+    Text = "Toggle Silent Aim",
+    Default = "PageUp",
+    Mode = "Toggle",
+    NoUI = true,
+    SyncToggleState = false,
+    Callback = function(value)
+        if Options.SilentAimToggle then
+            Options.SilentAimToggle:SetValue(value)
+        end
+    end
+})
+
+SilentAimGroup:AddSlider("SilentAimHitChance", {
+    Text = "Hit Chance",
+    Default = 100,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+    Compact = true,
+    Callback = function(value)
+        Config.SilentAim.HitChance = value
+    end
+})
+
+SilentAimGroup:AddDropdown("SilentAimHitPart", {
+    Text = "Hit Part",
+    Default = "Head",
+    Values = {"Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
+    Callback = function(value)
+        Config.SilentAim.HitPart = value
+    end
+})
+
+-- ====================================================================
+-- RAGEBOT TAB
+-- ====================================================================
+
+local RagebotTab = Window:AddTab("Ragebot")
+
+-- Ragebot Main
+local RagebotMainGroup = RagebotTab:AddLeftGroupbox("Ragebot")
+
+RagebotMainGroup:AddToggle("RagebotToggle", {
+    Text = "Enable Ragebot",
+    Default = false,
+    Tooltip = "Automatically aims and shoots",
+    Callback = toggleRagebot
+}):AddKeyPicker("RagebotKeybind", {
+    Text = "Toggle Ragebot",
+    Default = "Insert",
+    Mode = "Toggle",
+    NoUI = true,
+    SyncToggleState = false,
+    Callback = function(value)
+        if Options.RagebotToggle then
+            Options.RagebotToggle:SetValue(value)
+        end
+    end
+})
+
+RagebotMainGroup:AddToggle("RagebotAutoShoot", {
+    Text = "Auto Shoot",
+    Default = true,
+    Callback = function(value)
+        Config.Ragebot.AutoShoot = value
+    end
+})
+
+RagebotMainGroup:AddDropdown("RagebotHitPart", {
+    Text = "Hit Part",
+    Default = "Head",
+    Values = {"Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso"},
+    Callback = function(value)
+        Config.Ragebot.HitPart = value
+    end
+})
+
+RagebotMainGroup:AddSlider("RagebotFOV", {
+    Text = "FOV",
+    Default = 180,
+    Min = 10,
+    Max = 360,
+    Rounding = 0,
+    Compact = true,
+    Callback = function(value)
+        Config.Ragebot.FOV = value
+        if ragebotFOVCircle then
+            ragebotFOVCircle.Radius = value
+        end
+    end
+})
+
+RagebotMainGroup:AddSlider("RagebotMaxDistance", {
+    Text = "Max Distance",
+    Default = 500,
+    Min = 50,
+    Max = 1000,
+    Rounding = 0,
+    Compact = true,
+    Callback = function(value)
+        Config.Ragebot.MaxDistance = value
+    end
+})
+
+RagebotMainGroup:AddSlider("RagebotShootDelay", {
+    Text = "Shoot Delay",
+    Default = 0.05,
+    Min = 0.01,
+    Max = 0.5,
+    Rounding = 2,
+    Compact = true,
+    Callback = function(value)
+        Config.Ragebot.ShootDelay = value
+    end
+})
+
+RagebotMainGroup:AddSlider("RagebotHitChance", {
+    Text = "Hit Chance",
+    Default = 95,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+    Compact = true,
+    Callback = function(value)
+        Config.Ragebot.HitChance = value
+    end
+})
+
+RagebotMainGroup:AddDropdown("RagebotTargetMode", {
+    Text = "Target Mode",
+    Default = "closest",
+    Values = {"closest", "lowest_health", "highest_threat", "random"},
+    Callback = function(value)
+        Config.Ragebot.TargetMode = value
+    end
+})
+
+RagebotMainGroup:AddToggle("RagebotPrediction", {
+    Text = "Prediction",
+    Default = true,
+    Callback = function(value)
+        Config.Ragebot.Prediction = value
+    end
+})
+
+RagebotMainGroup:AddSlider("RagebotPredictionMultiplier", {
+    Text = "Prediction Mult",
+    Default = 1.2,
+    Min = 0.1,
+    Max = 3.0,
+    Rounding = 1,
+    Compact = true,
+    Callback = function(value)
+        Config.Ragebot.P
