@@ -148,3 +148,373 @@ print("[Bypass] ✅ No heavy memory scanning (zero lag)")
 -- ============================================================
 -- END OF BYPASS
 -- ============================================================
+-- ============================================================
+-- FFA DETECTOR + RAGEBOT AUTO-SWITCH
+-- Automatically detects FFA mode and adjusts Ragebot settings
+-- ============================================================
+
+print("[FFA Detector] Loading FFA detection system...")
+
+-- ============================================================
+-- CONFIGURATION
+-- ============================================================
+
+local FFA_CONFIG = {
+    -- How to detect FFA mode
+    DetectionMethods = {
+        CheckLiveFolder = true,      -- Check if workspace.Live has players without teams
+        CheckTeamIDs = true,         -- Check if players have no TeamID attribute
+        CheckGameMode = true,        -- Check if game mode is "FFA" or "FreeForAll"
+        CheckPlayerCount = true,     -- Check if there are more than 2 players in the server
+    },
+    
+    -- What to do when FFA is detected
+    OnFFADetect = {
+        DisableTeamCheck = true,     -- Disable team checks
+        SetAutoshoot = true,         -- Enable auto-shoot
+        SetTargetAll = true,         -- Target all players
+        ForceMatch = true,           -- Force the script to think you're in a match
+    },
+    
+    -- What to do when leaving FFA
+    OnFFALeave = {
+        RevertTeamCheck = true,      -- Re-enable team checks
+        RevertAutoshoot = false,     -- Leave auto-shoot as is
+        RevertMatch = true,          -- Let the script detect match state normally
+    },
+}
+
+-- ============================================================
+-- CORE DETECTION LOGIC
+-- ============================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local isFFAMode = false
+local lastCheckTime = 0
+
+-- Store original functions to revert later
+local originalTeamCheck = nil
+local originalMatchCheck = nil
+
+-- ============================================================
+-- DETECTION METHODS
+-- ============================================================
+
+-- Method 1: Check if players have TeamID attributes
+local function detectFFAByTeamIDs()
+    local players = Players:GetPlayers()
+    local hasTeamIDs = 0
+    local totalPlayers = 0
+    
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer then
+            totalPlayers = totalPlayers + 1
+            local teamID = player:GetAttribute("TeamID")
+            if teamID ~= nil and teamID ~= "" then
+                hasTeamIDs = hasTeamIDs + 1
+            end
+        end
+    end
+    
+    -- If most players don't have TeamIDs, it's FFA
+    if totalPlayers > 0 then
+        return (hasTeamIDs / totalPlayers) < 0.3
+    end
+    return false
+end
+
+-- Method 2: Check if game mode is FFA
+local function detectFFAByGameMode()
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    local gameMode = replicatedStorage:FindFirstChild("GameMode")
+    if gameMode then
+        local mode = gameMode.Value or gameMode.Name or ""
+        if mode:lower():find("ffa") or mode:lower():find("freeforall") or mode:lower():find("free for all") then
+            return true
+        end
+    end
+    
+    -- Check for FFA folder in workspace
+    local live = workspace:FindFirstChild("Live")
+    if live then
+        for _, child in ipairs(live:GetChildren()) do
+            if child.Name:lower():find("ffa") then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Method 3: Check Live folder structure
+local function detectFFAByLiveFolder()
+    local live = workspace:FindFirstChild("Live")
+    if not live then return false end
+    
+    -- In FFA, all players are in the Live folder without team grouping
+    local playersInLive = {}
+    for _, child in ipairs(live:GetChildren()) do
+        if child:IsA("Model") and child:FindFirstChild("HumanoidRootPart") then
+            table.insert(playersInLive, child)
+        end
+    end
+    
+    -- If there are players in Live and no team folders, it might be FFA
+    if #playersInLive >= 2 then
+        -- Check if there are team subfolders
+        local hasTeamFolders = false
+        for _, child in ipairs(live:GetChildren()) do
+            if child.Name:lower():find("team") or child.Name:lower():find("duel") then
+                hasTeamFolders = true
+                break
+            end
+        end
+        return not hasTeamFolders
+    end
+    
+    return false
+end
+
+-- Method 4: Check player count (FFA usually has more than 2 players)
+local function detectFFAByPlayerCount()
+    local players = Players:GetPlayers()
+    local count = 0
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer and player.Character then
+            count = count + 1
+        end
+    end
+    return count >= 3 -- If there are 3 or more enemies, likely FFA
+end
+
+-- Main detection function
+local function detectFFA()
+    local now = tick()
+    if now - lastCheckTime < 0.5 then
+        return isFFAMode -- Return cached value
+    end
+    lastCheckTime = now
+    
+    local ffaScore = 0
+    local totalMethods = 0
+    
+    if FFA_CONFIG.DetectionMethods.CheckTeamIDs then
+        totalMethods = totalMethods + 1
+        if detectFFAByTeamIDs() then ffaScore = ffaScore + 1 end
+    end
+    
+    if FFA_CONFIG.DetectionMethods.CheckGameMode then
+        totalMethods = totalMethods + 1
+        if detectFFAByGameMode() then ffaScore = ffaScore + 1 end
+    end
+    
+    if FFA_CONFIG.DetectionMethods.CheckLiveFolder then
+        totalMethods = totalMethods + 1
+        if detectFFAByLiveFolder() then ffaScore = ffaScore + 1 end
+    end
+    
+    if FFA_CONFIG.DetectionMethods.CheckPlayerCount then
+        totalMethods = totalMethods + 1
+        if detectFFAByPlayerCount() then ffaScore = ffaScore + 1 end
+    end
+    
+    -- Determine if FFA based on majority vote
+    local threshold = 0.5
+    return (ffaScore / totalMethods) >= threshold
+end
+
+-- ============================================================
+-- RAGEBOT ADJUSTMENT FUNCTIONS
+-- ============================================================
+
+-- Find the main config table
+local function getConfig()
+    return getgenv().lC or getgenv().G or getgenv().l or getgenv()._G
+end
+
+-- Enable FFA mode (target everyone)
+local function enableFFAMode()
+    local config = getConfig()
+    if not config then return end
+    
+    print("[FFA Detector] 🎯 ENABLING FFA MODE")
+    
+    -- Force Ragebot settings
+    if config.target then
+        config.target.enabled = true
+        config.target.rageMasterOn = true
+        config.target.auto = true
+        config.target.autoshoot = true
+        config.target.immune = false
+        print("[FFA Detector] ✅ Ragebot set to target everyone")
+    end
+    
+    -- Override team check if available
+    if config.c then
+        originalTeamCheck = config.c
+        config.c = function(l)
+            -- FFA MODE: Never skip anyone
+            return false
+        end
+        print("[FFA Detector] ✅ Team check disabled")
+    end
+    
+    if config.rC then
+        originalTeamCheck = config.rC
+        config.rC = function(l)
+            return false
+        end
+        print("[FFA Detector] ✅ Team check (rC) disabled")
+    end
+    
+    -- Override match detection
+    if config.A then
+        originalMatchCheck = config.A
+        config.A = function()
+            return true
+        end
+        print("[FFA Detector] ✅ Match detection forced to true")
+    end
+    
+    -- Set player attributes
+    if LocalPlayer then
+        LocalPlayer:SetAttribute("InMatch", true)
+        LocalPlayer:SetAttribute("InDuel", true)
+        LocalPlayer:SetAttribute("InGame", true)
+        LocalPlayer:SetAttribute("InFight", true)
+        LocalPlayer:SetAttribute("MatchActive", true)
+        LocalPlayer:SetAttribute("InLobby", false)
+        print("[FFA Detector] ✅ Match attributes set")
+    end
+    
+    isFFAMode = true
+end
+
+-- Disable FFA mode (revert to normal)
+local function disableFFAMode()
+    local config = getConfig()
+    if not config then return end
+    
+    print("[FFA Detector] 🔄 DISABLING FFA MODE")
+    
+    -- Restore team check
+    if originalTeamCheck then
+        if config.c then
+            config.c = originalTeamCheck
+        end
+        if config.rC then
+            config.rC = originalTeamCheck
+        end
+        originalTeamCheck = nil
+        print("[FFA Detector] ✅ Team check restored")
+    end
+    
+    -- Restore match detection
+    if originalMatchCheck then
+        if config.A then
+            config.A = originalMatchCheck
+        end
+        originalMatchCheck = nil
+        print("[FFA Detector] ✅ Match detection restored")
+    end
+    
+    -- Let the script handle match detection normally
+    if LocalPlayer then
+        LocalPlayer:SetAttribute("InMatch", nil)
+        LocalPlayer:SetAttribute("InDuel", nil)
+        LocalPlayer:SetAttribute("InGame", nil)
+        LocalPlayer:SetAttribute("InFight", nil)
+        LocalPlayer:SetAttribute("MatchActive", nil)
+        LocalPlayer:SetAttribute("InLobby", nil)
+        print("[FFA Detector] ✅ Match attributes reset")
+    end
+    
+    isFFAMode = false
+end
+
+-- ============================================================
+-- STATUS INDICATOR (Shows current mode)
+-- ============================================================
+
+local function showStatus()
+    if isFFAMode then
+        print("[FFA Detector] 🎯 CURRENT MODE: FREE-FOR-ALL")
+    else
+        print("[FFA Detector] 🎯 CURRENT MODE: NORMAL (1v1/Duels)")
+    end
+end
+
+-- ============================================================
+-- MAIN DETECTION LOOP
+-- ============================================================
+
+local function detectionLoop()
+    while true do
+        task.wait(1) -- Check every second
+        
+        local isFFA = detectFFA()
+        
+        if isFFA and not isFFAMode then
+            -- Entering FFA
+            enableFFAMode()
+            showStatus()
+        elseif not isFFA and isFFAMode then
+            -- Leaving FFA
+            disableFFAMode()
+            showStatus()
+        end
+    end
+end
+
+-- ============================================================
+-- START DETECTION
+-- ============================================================
+
+task.spawn(function()
+    task.wait(3) -- Wait for the game to load
+    print("[FFA Detector] 🔍 Starting FFA detection...")
+    detectionLoop()
+end)
+
+-- ============================================================
+-- MANUAL OVERRIDE (Press F8 to force FFA mode, F9 to force normal)
+-- ============================================================
+
+local UserInputService = game:GetService("UserInputService")
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F8 then
+        -- Force FFA mode
+        if not isFFAMode then
+            print("[FFA Detector] 🔧 Manually forcing FFA mode (F8)")
+            enableFFAMode()
+        else
+            print("[FFA Detector] 🔧 Already in FFA mode")
+        end
+    end
+    
+    if input.KeyCode == Enum.KeyCode.F9 then
+        -- Force normal mode
+        if isFFAMode then
+            print("[FFA Detector] 🔧 Manually forcing Normal mode (F9)")
+            disableFFAMode()
+        else
+            print("[FFA Detector] 🔧 Already in Normal mode")
+        end
+    end
+end)
+
+-- ============================================================
+-- INITIALIZATION
+-- ============================================================
+
+print("[FFA Detector] ✅ FFA detection system loaded!")
+print("[FFA Detector] 📌 Press F8 to force FFA mode")
+print("[FFA Detector] 📌 Press F9 to force Normal mode")
+
+-- ============================================================
+-- END OF FFA DETECTOR
+-- ============================================================
