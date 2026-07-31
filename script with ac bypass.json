@@ -1,1093 +1,417 @@
 --[[
-    RIVALS ULTIMATE RAGEBOT v3.0
-    Complete GUI Menu with ALL Features
-    Includes: Full Config System with Auto-Load
+    Sonion's Advanced Roblox AC Bypass + Unlock All
+    Optimized & Debugged by Bread (1945 World Record Coder)
+    Executor Requirements: Synapse X, Krnl, ScriptWare, or any executor with getgc, hookfunction, debug.getconstants
 ]]
 
-print("[RIVALS] Loading Ultimate Ragebot v3.0...")
+-- ============================================================
+-- SECTION 1: ANTI-CHEAT BYPASS (CORE)
+-- ============================================================
 
--- ====================================================================
--- ENVIRONMENT SETUP
--- ====================================================================
+local function acBypass()
+    -- 1.1: Hook setmetatable to block __mode="kv" (anti-debug tables)
+    local oldSetMeta = setmetatable
+    local function newSetMeta(tbl, mt)
+        if mt and type(mt) == "table" and rawget(mt, "__mode") == "kv" then
+            local trace = debug.traceback()
+            if trace:find("MiscellaneousController") then
+                return oldSetMeta({}, nil)  -- Return empty table with no metatable
+            end
+        end
+        return oldSetMeta(tbl, mt)
+    end
+    setmetatable = newSetMeta  -- Override globally
 
-local function setupEnvironment()
-    if not hookfunction then
-        hookfunction = function(func, replacement) return replacement end
-    end
-    if not newcclosure then
-        newcclosure = function(func) return func end
-    end
-    if not getrenv then
-        getrenv = function() return getfenv() end
-    end
-    if not getgenv then
-        getgenv = function() return _G end
-    end
-    if not cloneref then
-        cloneref = function(obj) return obj end
-    end
-    if not isfolder then
-        isfolder = function() return false end
-        makefolder = function() end
-        writefile = function() end
-        readfile = function() return "" end
-        delfile = function() end
-        listfiles = function() return {} end
-    end
-    if not getsynasset then
-        getsynasset = function(path) return path end
-    end
-    if not getcustomasset then
-        getcustomasset = function(path) return path end
-    end
-    if not gethui then
-        gethui = function() return game:GetService("CoreGui") end
-    end
-    if not getgc then
-        getgc = function() return {} end
-    end
-    if not setfpscap then
-        setfpscap = function() end
-    end
-    if not getfenv then
-        getfenv = function() return _G end
-    end
-end
-setupEnvironment()
-
--- ====================================================================
--- CONFIG SYSTEM
--- ====================================================================
-
-local ConfigSystem = {
-    Folder = "RIVALS_Ragebot",
-    Configs = {},
-    CurrentConfig = "Default",
-    AutoLoad = true,
-    AutoLoadName = "Default",
-}
-
--- Create folder if it doesn't exist
-pcall(function()
-    if not isfolder(ConfigSystem.Folder) then
-        makefolder(ConfigSystem.Folder)
-    end
-    if not isfolder(ConfigSystem.Folder .. "/Configs") then
-        makefolder(ConfigSystem.Folder .. "/Configs")
-    end
-end)
-
--- Get all configs
-function ConfigSystem:GetConfigs()
-    local configs = {}
-    pcall(function()
-        local files = listfiles(self.Folder .. "/Configs")
-        for _, file in ipairs(files) do
-            if file:sub(-5) == ".json" then
-                local name = file:match("([^/\\]+)%.json$")
-                if name then
-                    table.insert(configs, name)
+    -- 1.2: Disable script descendants that are anti-cheat related
+    local function disableScripts()
+        local tags = {"anticheat", "ac", "detection", "ban", "kick", "security", "moderation"}
+        local function processObj(obj)
+            if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+                local name = obj.Name:lower()
+                for _, tag in ipairs(tags) do
+                    if name:find(tag) then
+                        pcall(function() obj.Disabled = true end)
+                        break
+                    end
                 end
             end
         end
-    end)
-    return configs
-end
 
--- Save config
-function ConfigSystem:Save(name)
-    if not name or name == "" then
-        name = "Default"
-    end
-    
-    local data = {
-        Config = Config,
-        Version = "3.0",
-        SavedAt = os.time(),
-    }
-    
-    local success, encoded = pcall(function()
-        return game:GetService("HttpService"):JSONEncode(data)
-    end)
-    
-    if success and encoded then
-        pcall(function()
-            writefile(self.Folder .. "/Configs/" .. name .. ".json", encoded)
-        end)
-        return true
-    end
-    return false
-end
-
--- Load config
-function ConfigSystem:Load(name)
-    if not name or name == "" then
-        name = "Default"
-    end
-    
-    local file = self.Folder .. "/Configs/" .. name .. ".json"
-    if not isfile(file) then
-        return false
-    end
-    
-    local success, raw = pcall(function()
-        return readfile(file)
-    end)
-    
-    if not success or not raw then
-        return false
-    end
-    
-    local success, data = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(raw)
-    end)
-    
-    if not success or not data or not data.Config then
-        return false
-    end
-    
-    -- Merge configs
-    local function merge(target, source)
-        for key, value in pairs(source) do
-            if type(value) == "table" and type(target[key]) == "table" then
-                merge(target[key], value)
-            else
-                target[key] = value
-            end
+        -- Process all existing descendants
+        for _, child in ipairs(game:GetDescendants()) do
+            processObj(child)
         end
+
+        -- Connect for future descendants
+        game.DescendantAdded:Connect(processObj)
     end
-    
-    merge(Config, data.Config)
-    self.CurrentConfig = name
-    
-    -- Apply loaded settings
-    applyAllSettings()
-    
-    return true
-end
 
--- Delete config
-function ConfigSystem:Delete(name)
-    if not name or name == "" then
-        return false
-    end
-    local file = self.Folder .. "/Configs/" .. name .. ".json"
-    if isfile(file) then
-        pcall(function()
-            delfile(file)
-        end)
-        return true
-    end
-    return false
-end
-
--- Auto-load
-function ConfigSystem:AutoLoad()
-    if not self.AutoLoad then return end
-    
-    -- Check for autoload file
-    local autoFile = self.Folder .. "/autoload.txt"
-    if isfile(autoFile) then
-        local name = readfile(autoFile):gsub("%s+", "")
-        if name ~= "" and isfile(self.Folder .. "/Configs/" .. name .. ".json") then
-            self:Load(name)
-            print("[RIVALS] Auto-loaded config: " .. name)
-            return
-        end
-    end
-    
-    -- Fallback to default
-    if isfile(self.Folder .. "/Configs/Default.json") then
-        self:Load("Default")
-        print("[RIVALS] Loaded default config")
-    end
-end
-
--- Set autoload
-function ConfigSystem:SetAutoLoad(name)
-    if not name or name == "" then
-        name = "Default"
-    end
-    pcall(function()
-        writefile(self.Folder .. "/autoload.txt", name)
-    end)
-    self.AutoLoadName = name
-end
-
--- ====================================================================
--- COMPLETE CONFIGURATION
--- ====================================================================
-
-local Config = {
-    -- Anti-Detection
-    AntiDetection = {
-        Enabled = true,
-        HookMetatables = true,
-        ScanScripts = true,
-        BypassLevel = 3,
-        ProtectRemoteEvents = true,
-        SpoofNetwork = false,
-    },
-    
-    -- Aimbot
-    Aimbot = {
-        Enabled = false,
-        Smoothing = 0.08,
-        FOV = 120,
-        HitPart = "Head",
-        VisibleCheck = true,
-        Prediction = true,
-        PredictionMultiplier = 1.2,
-        MaxDistance = 500,
-        TargetMode = "cursor",
-        AutoFire = false,
-        FireDelay = 0.1,
-        Humanize = true,
-        HumanizeInaccuracy = 0.5,
-        HumanizeReactionTime = 0.12,
-        Keybind = "RightShift",
-    },
-    
-    -- ESP
-    ESP = {
-        Enabled = false,
-        Color = Color3.fromRGB(255, 0, 0),
-        Color2 = Color3.fromRGB(255, 255, 0),
-        Transparency = 0.5,
-        OutlineColor = Color3.fromRGB(255, 255, 255),
-        OutlineTransparency = 0,
-        ShowBoxes = true,
-        ShowHealthBar = true,
-        ShowName = true,
-        ShowDistance = true,
-        ShowSkeleton = false,
-        ShowTracers = false,
-        TracerColor = Color3.fromRGB(0, 255, 255),
-        MaxDistance = 500,
-        TeamCheck = false,
-        OnlyVisible = true,
-        GlowEffect = false,
-        GlowIntensity = 0.5,
-        Keybind = "RightControl",
-    },
-    
-    -- Silent Aim
-    SilentAim = {
-        Enabled = false,
-        HitChance = 100,
-        HitPart = "Head",
-        VisibleCheck = true,
-        MaxDistance = 500,
-        Prediction = true,
-        PredictionMultiplier = 1.2,
-        Humanize = true,
-        HumanizeInaccuracy = 0.5,
-        HitSound = false,
-        HitSoundVolume = 0.5,
-        HitSoundType = "Rust HS",
-        Keybind = "PageUp",
-    },
-    
-    -- Speed
-    Speed = {
-        Enabled = false,
-        Value = 30,
-        MinSpeed = 16,
-        MaxSpeed = 100,
-        JumpPower = 50,
-        EnableJump = false,
-        AutoSprint = false,
-        Keybind = "PageDown",
-    },
-    
-    -- Fly
-    Fly = {
-        Enabled = false,
-        Speed = 50,
-        Keybind = "F",
-    },
-    
-    -- Noclip
-    Noclip = {
-        Enabled = false,
-        Keybind = "N",
-    },
-    
-    -- Anti-Aim
-    AntiAim = {
-        Enabled = false,
-        Mode = "jitter",
-        Angle = 90,
-        Speed = 30,
-        Pitch = 0,
-        PitchMode = "none",
-        FakeAngle = 180,
-        Invert = false,
-        OnlyWhenMoving = false,
-        WhenShooting = false,
-        Keybind = "End",
-    },
-    
-    -- Ragebot
-    Ragebot = {
-        Enabled = false,
-        HitPart = "Head",
-        FOV = 180,
-        MaxDistance = 500,
-        ShootDelay = 0.05,
-        HitChance = 95,
-        AutoShoot = true,
-        Prediction = true,
-        PredictionMultiplier = 1.2,
-        TargetMode = "closest",
-        SwitchDelay = 1.0,
-        HealthThreshold = 30,
-        MaxShotsPerTarget = 10,
-        VisibleCheck = true,
-        Wallbang = false,
-        WallbangChance = 20,
-        AntiKatana = true,
-        AntiKatanaSwitch = true,
-        Humanize = true,
-        HumanizeInaccuracy = 0.8,
-        HumanizeReactionTime = 0.12,
-        HumanizeMissChance = 0.02,
-        BurstMode = false,
-        BurstSize = 3,
-        BurstDelay = 0.15,
-        Keybind = "Insert",
-    },
-    
-    -- Anti-Katana
-    AntiKatana = {
-        Enabled = true,
-        DetectionRadius = 30,
-        AutoSwitchTarget = true,
-        WarningColor = Color3.fromRGB(255, 0, 0),
-        ShowWarning = true,
-        AutoBlock = true,
-        BlockDistance = 10,
-    },
-    
-    -- Anti-Subspace Tripmine
-    AntiTripmine = {
-        Enabled = true,
-        DetectionRadius = 20,
-        AutoDestroy = true,
-        ShowWarning = true,
-        WarningColor = Color3.fromRGB(255, 255, 0),
-        AutoTrigger = false,
-    },
-    
-    -- Anti-Flashbang
-    AntiFlashbang = {
-        Enabled = true,
-        BlindDuration = 0,
-        RemoveEffect = true,
-    },
-    
-    -- Visuals
-    Visuals = {
-        ShowFOV = true,
-        FOVColor = Color3.fromRGB(255, 255, 255),
-        FOVTransparency = 0.5,
-        FOVRadius = 120,
-        ShowRagebotFOV = true,
-        RagebotFOVColor = Color3.fromRGB(255, 50, 50),
-        RagebotFOVTransparency = 0.3,
-        ShowTargetIndicator = true,
-        IndicatorColor = Color3.fromRGB(0, 255, 0),
-        IndicatorTransparency = 0.3,
-        ShowCrosshair = false,
-        CrosshairColor = Color3.fromRGB(255, 255, 255),
-        CrosshairSize = 10,
-        CrosshairThickness = 2,
-        CrosshairStyle = "cross",
-        ShowWatermark = true,
-        WatermarkText = "RIVALS Ragebot v3.0",
-        WatermarkColor = Color3.fromRGB(255, 255, 255),
-        ShowStats = true,
-        StatsColor = Color3.fromRGB(255, 255, 255),
-        ShowFPS = true,
-        ShowDamageNumbers = true,
-        DamageColor = Color3.fromRGB(255, 255, 255),
-        DamageDuration = 1.5,
-        DamageSize = 20,
-    },
-    
-    -- Device Spoof
-    DeviceSpoof = {
-        Enabled = false,
-        DeviceType = "Console",
-        AutoApply = true,
-        ApplyDelay = 1,
-    },
-    
-    -- Hit Sounds
-    HitSounds = {
-        Enabled = false,
-        SoundType = "Rust HS",
-        Volume = 0.5,
-        Pitch = 1.0,
-    },
-    
-    -- Kill Sounds
-    KillSounds = {
-        Enabled = false,
-        SoundType = "sound 1",
-        Volume = 0.5,
-        Pitch = 1.0,
-    },
-    
-    -- Slide Boost
-    SlideBoost = {
-        Enabled = false,
-        Speed = 300,
-    },
-    
-    -- Auto Queue
-    AutoQueue = {
-        Enabled = false,
-        Mode = "1v1",
-        Ranked = false,
-        Delay = 1,
-    },
-    
-    -- Auto Ban
-    AutoBan = {
-        Enabled = false,
-        Weapon1 = "Riot Shield",
-        Weapon2 = "Katana",
-        Delay = 1,
-    },
-    
-    -- Performance
-    Performance = {
-        UpdateRate = 0.03,
-        MaxTargets = 10,
-        LowGraphicsMode = false,
-        FPSCap = 0,
-    },
-    
-    -- Misc
-    Misc = {
-        ModDetector = true,
-        AntiKick = true,
-        AntiBan = true,
-        SpoofLevel = true,
-        LevelValue = 9999,
-        SpoofWinstreak = true,
-        WinstreakValue = 9999,
-    }
-}
-
--- ====================================================================
--- LOAD LINORIALIB
--- ====================================================================
-
-local Library, SaveManager, ThemeManager
-
-pcall(function()
-    Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua", true))()
-end)
-
-if not Library then
-    pcall(function()
-        Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
-    end)
-end
-
-if not Library then
-    local libSource = [[
-        return {
-            CreateWindow = function() 
-                local window = {Holder = Instance.new("ScreenGui")}
-                window.AddTab = function() 
-                    return {
-                        AddLeftGroupbox = function() 
-                            return {
-                                AddToggle = function() return { AddKeyPicker = function() return {} end } end,
-                                AddSlider = function() return {} end,
-                                AddDropdown = function() return {} end,
-                                AddColorPicker = function() return {} end,
-                                AddLabel = function() return {} end,
-                                AddButton = function() return {} end,
-                                AddInput = function() return {} end,
-                                AddKeyPicker = function() return {} end,
-                                AddDivider = function() return {} end,
-                                AddDependencyBox = function() return { AddSlider = function() return {} end, AddDropdown = function() return {} end, SetupDependencies = function() end } end,
-                            }
-                        end,
-                        AddRightGroupbox = function() 
-                            return {
-                                AddToggle = function() return { AddKeyPicker = function() return {} end } end,
-                                AddSlider = function() return {} end,
-                                AddDropdown = function() return {} end,
-                                AddColorPicker = function() return {} end,
-                                AddLabel = function() return {} end,
-                                AddButton = function() return {} end,
-                                AddInput = function() return {} end,
-                                AddKeyPicker = function() return {} end,
-                                AddDivider = function() return {} end,
-                                AddDependencyBox = function() return { AddSlider = function() return {} end, AddDropdown = function() return {} end, SetupDependencies = function() end } end,
-                            }
-                        end,
-                        AddLeftTabbox = function() 
-                            local tabbox = {}
-                            tabbox.AddTab = function() return { AddLeftGroupbox = function() return {} end, AddRightGroupbox = function() return {} end } end
-                            return tabbox
-                        end,
-                        AddRightTabbox = function() 
-                            local tabbox = {}
-                            tabbox.AddTab = function() return { AddLeftGroupbox = function() return {} end, AddRightGroupbox = function() return {} end } end
-                            return tabbox
-                        end,
-                    }
-                end
-                window.Toggle = function() end
-                return window
+    -- 1.3: Monitor NetworkClient for incoming anti-cheat remotes
+    local function monitorNetworkClient()
+        local nc = game:GetService("NetworkClient")
+        if not nc then return end
+        nc.ChildAdded:Connect(function(child)
+            local name = child.Name:lower()
+            if name:find("anticheat") or name:find("detection") or name:find("kick") then
+                pcall(function() child:Destroy() end)
             end
-        }
-    ]]
-    Library = loadstring(libSource)()
-end
+        end)
+    end
 
-if not SaveManager then
-    SaveManager = {
-        SetLibrary = function() end,
-        SetFolder = function() end,
-        BuildConfigSection = function() end,
-        SetIgnoreIndexes = function() end,
-    }
-end
+    -- 1.4: Create a fake ClientAlert to satisfy the game's initial check
+    local fakeAlert = Instance.new("RemoteEvent")
+    fakeAlert.Name = "ClientAlert"
+    fakeAlert.Parent = game.Players.LocalPlayer
 
-if not ThemeManager then
-    ThemeManager = {
-        SetLibrary = function() end,
-        SetFolder = function() end,
-        ApplyToTab = function() end,
-        ApplyToGroupbox = function() end,
-    }
-end
+    -- 1.5: Spoof WaitForChild on LocalPlayer to return our fake alert
+    local meta = getrawmetatable(game.Players.LocalPlayer) or {}
+    local oldNameCall = meta.__namecall
+    setreadonly(meta, false)
+    meta.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "WaitForChild" and select(1, ...) == "ClientAlert" then
+            return fakeAlert
+        end
+        return oldNameCall(self, ...)
+    end)
+    setreadonly(meta, true)
 
--- ====================================================================
--- SERVICES
--- ====================================================================
+    -- 1.6: Block Kick and Shutdown methods on LocalPlayer
+    local playerMeta = getrawmetatable(game.Players.LocalPlayer)
+    local oldPlayerNameCall = playerMeta.__namecall
+    setreadonly(playerMeta, false)
+    playerMeta.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" or method == "kick" or method == "Shutdown" then
+            return nil  -- Silently block
+        end
+        if method == "FireServer" and self == fakeAlert then
+            return nil  -- Block fire on our fake
+        end
+        return oldPlayerNameCall(self, ...)
+    end)
+    setreadonly(playerMeta, true)
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local TextService = game:GetService("TextService")
-local Lighting = game:GetService("Lighting")
-local SoundService = game:GetService("SoundService")
-local GuiService = game:GetService("GuiService")
-local HttpService = game:GetService("HttpService")
+    -- 1.7: Hook and neuter the actual anti-cheat function in LocalScript3
+    local function neuterACSripts()
+        local targetScript = game:GetService("ReplicatedFirst"):WaitForChild("LocalScript3", 10)
+        local hookedCount = 0
 
-local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
-
--- ====================================================================
--- VARIABLES
--- ====================================================================
-
-local trackedPlayers = {}
-local espHighlights = {}
-local espBoxes = {}
-local espTexts = {}
-local espTracers = {}
-local fovCircle = nil
-local ragebotFOVCircle = nil
-local targetIndicator = nil
-local crosshair = nil
-local watermarkText = nil
-local statsText = nil
-local fpsText = nil
-local damageTexts = {}
-local ragebotTarget = nil
-local ragebotTargetPart = nil
-local ragebotLastShot = 0
-local ragebotShotCount = 0
-local ragebotHitCount = 0
-local ragebotMissCount = 0
-local lastRagebotUpdate = 0
-local lastFrameTime = 0
-local frameCount = 0
-local fps = 0
-local isFlying = false
-local flyBodyVelocity = nil
-local noclipActive = false
-local tripmineDetected = false
-local katanaDetected = false
-local lastTripmineCheck = 0
-local lastKatanaCheck = 0
-local configLoaded = false
-
--- ====================================================================
--- ANTI-DETECTION SYSTEM
--- ====================================================================
-
-local function setupAntiDetection()
-    if not Config.AntiDetection.Enabled then return end
-    
-    if Config.AntiDetection.HookMetatables then
-        pcall(function()
-            local oldMetatable = getrenv and getrenv().setmetatable or setmetatable
-            if hookfunction then
-                hookfunction(oldMetatable, function(obj, meta)
-                    if meta and type(meta) == "table" and rawget(meta, "__mode") == "kv" then
-                        local trace = debug and debug.traceback and debug.traceback() or ""
-                        if trace:find("MiscellaneousController") or trace:find("AntiCheat") or trace:find("Moderation") then
-                            return oldMetatable({}, {})
+        for _, func in ipairs(getgc(false)) do
+            if type(func) == "function" then
+                local success, env = pcall(getfenv, func)
+                if success and env then
+                    local scriptObj = rawget(env, "script")
+                    if scriptObj and (scriptObj == targetScript or tostring(scriptObj):find("LoadingScreen")) then
+                        local ok, constants = pcall(debug.getconstants, func)
+                        if ok then
+                            for _, const in ipairs(constants) do
+                                if type(const) == "string" and (const:find("TakeTheL") or const:find("ban") or const:find("kick")) then
+                                    hookfunction(func, function() end)
+                                    hookedCount = hookedCount + 1
+                                    break  -- Exit loop early to save performance
+                                end
+                            end
                         end
                     end
-                    return oldMetatable(obj, meta)
+                end
+            end
+        end
+
+        if hookedCount > 0 then
+            print("[Bread] Neutered " .. hookedCount .. " anti-cheat functions.")
+        else
+            warn("[Bread] No anti-cheat functions found. Game may have updated.")
+        end
+    end
+
+    -- Execute all bypass steps asynchronously
+    coroutine.wrap(function()
+        pcall(disableScripts)
+        pcall(monitorNetworkClient)
+        pcall(neuterACSripts)
+        print("[Bread] Anti-cheat bypass initialized.")
+    end)()
+end
+
+-- ============================================================
+-- SECTION 2: COSMETIC UNLOCK ALL (GOD MODE)
+-- ============================================================
+
+local function unlockAll()
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local HttpService = game:GetService("HttpService")
+    local player = Players.LocalPlayer
+    local playerScripts = player.PlayerScripts
+    local controllers = playerScripts:FindFirstChild("Controllers")
+    if not controllers then return warn("[Bread] Controllers not found. Unlock all abort.") end
+
+    -- 2.1: Load required modules with timeout
+    local function safeRequire(path, timeout)
+        timeout = timeout or 5
+        local start = tick()
+        while tick() - start < timeout do
+            local success, mod = pcall(function() return require(path) end)
+            if success and mod then return mod end
+            task.wait(0.1)
+        end
+        return nil
+    end
+
+    local EnumLibrary = safeRequire(ReplicatedStorage.Modules:WaitForChild("EnumLibrary", 10))
+    local CosmeticLibrary = safeRequire(ReplicatedStorage.Modules:WaitForChild("CosmeticLibrary", 10))
+    local ItemLibrary = safeRequire(ReplicatedStorage.Modules:WaitForChild("ItemLibrary", 10))
+    local DataController = safeRequire(controllers:WaitForChild("PlayerDataController", 10))
+
+    if not (EnumLibrary and CosmeticLibrary and ItemLibrary and DataController) then
+        return warn("[Bread] Critical modules missing. Unlock all failed.")
+    end
+
+    -- 2.2: State management
+    local equipped = {}
+    local favorites = {}
+    local constructingWeapon = nil
+    local viewingProfile = nil
+    local lastUsedWeapon = nil
+
+    -- 2.3: Clone cosmetic data safely
+    local function cloneCosmetic(name, cosmeticType, options)
+        if not CosmeticLibrary.Cosmetics then return nil end
+        local base = CosmeticLibrary.Cosmetics[name]
+        if not base then return nil end
+        local data = {}
+        for k, v in pairs(base) do data[k] = v end
+        data.Name = name
+        data.Type = data.Type or cosmeticType
+        data.Seed = data.Seed or math.random(1, 1000000)
+        if EnumLibrary and EnumLibrary.ToEnum then
+            local success, enumId = pcall(EnumLibrary.ToEnum, EnumLibrary, name)
+            if success and enumId then
+                data.Enum = enumId
+                data.ObjectID = data.ObjectID or enumId
+            end
+        end
+        if options then
+            if options.inverted ~= nil then data.Inverted = options.inverted end
+            if options.favoritesOnly ~= nil then data.OnlyUseFavorites = options.favoritesOnly end
+        end
+        return data
+    end
+
+    -- 2.4: Config save/load with error handling
+    local CONFIG_PATH = "CloakUnlockall/config.json"
+    local function saveConfig()
+        if not writefile then return end
+        pcall(function()
+            local config = {
+                equipped = {},
+                favorites = favorites or {}
+            }
+            for weapon, cosmetics in pairs(equipped) do
+                config.equipped[weapon] = {}
+                for cType, cData in pairs(cosmetics) do
+                    if cData and cData.Name then
+                        config.equipped[weapon][cType] = {
+                            name = cData.Name,
+                            seed = cData.Seed,
+                            inverted = cData.Inverted
+                        }
+                    end
+                end
+            end
+            makefolder("CloakUnlockall")
+            writefile(CONFIG_PATH, HttpService:JSONEncode(config))
+        end)
+    end
+
+    local function loadConfig()
+        if not readfile or not isfile or not isfile(CONFIG_PATH) then return end
+        pcall(function()
+            local config = HttpService:JSONDecode(readfile(CONFIG_PATH))
+            if config.equipped then
+                for weapon, cosmetics in pairs(config.equipped) do
+                    equipped[weapon] = {}
+                    for cType, cData in pairs(cosmetics) do
+                        local cloned = cloneCosmetic(cData.name, cType, {inverted = cData.inverted})
+                        if cloned then
+                            cloned.Seed = cData.seed or math.random(1, 1000000)
+                            equipped[weapon][cType] = cloned
+                        end
+                    end
+                end
+            end
+            favorites = config.favorites or {}
+        end)
+    end
+
+    -- 2.5: Patch Ownership Functions
+    local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic
+    CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
+        if name and name:find("MISSING_") then
+            return originalOwnsCosmetic(self, inventory, name, weapon)
+        end
+        if CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name] then
+            return true  -- Only claim ownership if the cosmetic actually exists
+        end
+        return originalOwnsCosmetic(self, inventory, name, weapon)
+    end
+
+    CosmeticLibrary.OwnsCosmeticNormally = function() return true end
+    CosmeticLibrary.OwnsCosmeticUniversally = function() return true end
+    CosmeticLibrary.OwnsCosmeticForWeapon = function() return true end
+
+    -- 2.6: Patch DataController.Get
+    local originalGet = DataController.Get
+    DataController.Get = function(self, key)
+        local data = originalGet(self, key)
+        if key == "CosmeticInventory" then
+            local proxy = {}
+            if data then
+                for k, v in pairs(data) do proxy[k] = v end
+            end
+            return setmetatable(proxy, {
+                __index = function(tbl, index)
+                    if CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[index] then
+                        return true
+                    end
+                    return nil  -- Don't lie about non-existent cosmetics
+                end
+            })
+        end
+        if key == "FavoritedCosmetics" then
+            local result = data and table.clone(data) or {}
+            for weapon, favs in pairs(favorites) do
+                result[weapon] = result[weapon] or {}
+                for name, isFav in pairs(favs) do
+                    result[weapon][name] = isFav
+                end
+            end
+            return result
+        end
+        return data
+    end
+
+    -- 2.7: Patch GetWeaponData
+    local originalGetWeaponData = DataController.GetWeaponData
+    DataController.GetWeaponData = function(self, weaponName)
+        local data = originalGetWeaponData(self, weaponName)
+        if not data then return nil end
+        local merged = {}
+        for k, v in pairs(data) do merged[k] = v end
+        merged.Name = weaponName
+        if equipped[weaponName] then
+            for cType, cData in pairs(equipped[weaponName]) do
+                merged[cType] = cData
+            end
+        end
+        return merged
+    end
+
+    -- 2.8: Hook Remote Events
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    local dataRemotes = remotes and remotes:FindFirstChild("Data")
+    local equipRemote = dataRemotes and dataRemotes:FindFirstChild("EquipCosmetic")
+    local favoriteRemote = dataRemotes and dataRemotes:FindFirstChild("FavoriteCosmetic")
+    local replicationRemotes = remotes and remotes:FindFirstChild("Replication")
+    local fighterRemotes = replicationRemotes and replicationRemotes:FindFirstChild("Fighter")
+    local useItemRemote = fighterRemotes and fighterRemotes:FindFirstChild("UseItem")
+
+    if equipRemote and hookfunction then
+        local originalFireServer = equipRemote.FireServer
+        hookfunction(equipRemote, function(self, weaponName, cosmeticType, cosmeticName, options)
+            if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
+                local inventory = DataController:Get("CosmeticInventory")
+                if inventory and rawget(inventory, cosmeticName) then
+                    return originalFireServer(self, weaponName, cosmeticType, cosmeticName, options)
+                end
+            end
+
+            equipped[weaponName] = equipped[weaponName] or {}
+            if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
+                equipped[weaponName][cosmeticType] = nil
+                if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+            else
+                local cloned = cloneCosmetic(cosmeticName, cosmeticType, {
+                    inverted = options and options.IsInverted,
+                    favoritesOnly = options and options.OnlyUseFavorites
+                })
+                if cloned then
+                    equipped[weaponName][cosmeticType] = cloned
+                end
+            end
+
+            task.defer(function()
+                pcall(function()
+                    DataController.CurrentData:Replicate("WeaponInventory")
+                    task.wait(0.2)
+                    saveConfig()
                 end)
-            end
+            end)
         end)
     end
-    
-    if Config.AntiDetection.ScanScripts then
-        pcall(function()
-            local keywords = {"anticheat", "ac", "detection", "ban", "kick", "security", "moderation", "admin", "staff", "mod"}
-            for _, obj in ipairs(game:GetDescendants()) do
-                if obj:IsA("LocalScript") or obj:IsA("ModuleScript") or obj:IsA("Script") then
-                    local name = pcall(obj.Name.lower, obj) and obj.Name:lower() or ""
-                    for _, kw in ipairs(keywords) do
-                        if name:find(kw) then
-                            pcall(function() 
-                                obj.Disabled = true 
-                                if obj:IsA("ModuleScript") then
-                                    obj.Parent = nil
-                                end
-                            end)
-                            break
-                        end
-                    end
-                end
-                if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                    local name = pcall(obj.Name.lower, obj) and obj.Name:lower() or ""
-                    for _, kw in ipairs({"anticheat", "ac", "detection", "ban", "kick"}) do
-                        if name:find(kw) then
-                            pcall(function() obj:Destroy() end)
-                            break
-                        end
-                    end
-                end
-            end
+
+    if favoriteRemote and hookfunction then
+        hookfunction(favoriteRemote, function(self, weapon, name, isFav)
+            favorites[weapon] = favorites[weapon] or {}
+            favorites[weapon][name] = isFav or nil
+            saveConfig()
+            task.spawn(function()
+                pcall(function() DataController.CurrentData:Replicate("FavoritedCosmetics") end)
+            end)
         end)
     end
-end
 
-setupAntiDetection()
-print("[RIVALS] Anti-detection active")
+    -- 2.9: Patch ViewModel Creation for Skin/Wrap/Charm rendering
+    local ClientItem = safeRequire(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
+    if ClientItem and ClientItem._CreateViewModel then
+        local originalCreate = ClientItem._CreateViewModel
+        ClientItem._CreateViewModel = function(self, viewmodelRef)
+            local weaponName = self.Name
+            local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
+            constructingWeapon = (weaponPlayer == player) and weaponName or nil
 
--- ====================================================================
--- UTILITY FUNCTIONS
--- ====================================================================
-
-local function getCharacter(player)
-    if not player then return nil end
-    return player.Character
-end
-
-local function getHumanoid(player)
-    local char = getCharacter(player)
-    if char then return char:FindFirstChildOfClass("Humanoid") end
-    return nil
-end
-
-local function getPart(player, partName)
-    local char = getCharacter(player)
-    if not char then return nil end
-    return char:FindFirstChild(partName) or char:FindFirstChild("HumanoidRootPart")
-end
-
-local function isAlive(player)
-    local hum = getHumanoid(player)
-    return hum and hum.Health > 0
-end
-
-local function getHealth(player)
-    local hum = getHumanoid(player)
-    return hum and hum.Health or 0
-end
-
-local function getMaxHealth(player)
-    local hum = getHumanoid(player)
-    return hum and hum.MaxHealth or 100
-end
-
-local function getDistance(player)
-    local char1 = LocalPlayer.Character
-    local char2 = getCharacter(player)
-    if not char1 or not char2 then return math.huge end
-    local hrp1 = char1:FindFirstChild("HumanoidRootPart")
-    local hrp2 = char2:FindFirstChild("HumanoidRootPart")
-    if hrp1 and hrp2 then
-        return (hrp1.Position - hrp2.Position).Magnitude
-    end
-    return math.huge
-end
-
-local function isVisible(part)
-    if not part or not Camera then return false end
-    local origin = Camera.CFrame.Position
-    local dir = (part.Position - origin).Unit
-    local dist = (part.Position - origin).Magnitude
-    local params = RaycastParams.new()
-    local char = LocalPlayer.Character
-    if char then params.FilterDescendantsInstances = {char} end
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    local result = Workspace:Raycast(origin, dir * dist, params)
-    return result == nil
-end
-
-local function getScreenPos(part)
-    if not part or not Camera then return nil end
-    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-    if onScreen then return Vector2.new(pos.X, pos.Y) end
-    return nil
-end
-
-local function getTeam(player)
-    if not player then return nil end
-    return player:GetAttribute("TeamID") or player.Team
-end
-
-local function isTeammate(player)
-    if not Config.ESP.TeamCheck then return false end
-    local localTeam = getTeam(LocalPlayer)
-    local targetTeam = getTeam(player)
-    return localTeam and targetTeam and localTeam == targetTeam
-end
-
-local function lerp(a, b, t)
-    return a + (b - a) * t
-end
-
-local function lerpColor(c1, c2, t)
-    return Color3.new(
-        lerp(c1.R, c2.R, t),
-        lerp(c1.G, c2.G, t),
-        lerp(c1.B, c2.B, t)
-    )
-end
-
-local function createText(text, pos, color, size)
-    local txt = Drawing.new("Text")
-    txt.Text = text
-    txt.Position = pos
-    txt.Color = color or Color3.fromRGB(255, 255, 255)
-    txt.Size = size or 14
-    txt.Outline = true
-    txt.OutlineColor = Color3.fromRGB(0, 0, 0)
-    txt.Center = true
-    txt.Font = 2
-    txt.Visible = true
-    return txt
-end
-
--- ====================================================================
--- PLAYER TRACKING
--- ====================================================================
-
-local function trackPlayers()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local char = getCharacter(player)
-            if char then
-                if not trackedPlayers[player] then
-                    trackedPlayers[player] = {
-                        Name = player.Name,
-                        DisplayName = player.DisplayName,
-                        Character = char,
-                        RootPart = char:FindFirstChild("HumanoidRootPart"),
-                        Head = char:FindFirstChild("Head"),
-                        Health = char:FindFirstChildOfClass("Humanoid"),
-                        LastPosition = Vector3.new(0, 0, 0),
-                        Velocity = Vector3.new(0, 0, 0),
-                        Team = getTeam(player),
-                        LastSeen = tick(),
-                        HasKatana = false,
-                    }
-                end
-                local data = trackedPlayers[player]
-                if data.Character and data.RootPart then
-                    local currentPos = data.RootPart.Position
-                    local dt = 0.1
-                    if data.LastPosition and data.LastPosition ~= Vector3.new(0, 0, 0) then
-                        data.Velocity = (currentPos - data.LastPosition) / dt
-                    end
-                    data.LastPosition = currentPos
-                    data.LastSeen = tick()
-                    
-                    -- Check for katana
-                    for _, child in ipairs(char:GetChildren()) do
-                        if child:IsA("Tool") and (child.Name:lower():find("katana") or child.Name:lower():find("sword")) then
-                            data.HasKatana = true
-                            break
-                        end
-                    end
-                end
-            else
-                if trackedPlayers[player] then
-                    trackedPlayers[player].LastSeen = tick()
+            if weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Skin and viewmodelRef then
+                local dataKey = self:ToEnum and self:ToEnum("Data") or "Data"
+                local skinKey = self:ToEnum and self:ToEnum("Skin") or "Skin"
+                local nameKey = self:ToEnum and self:ToEnum("Name") or "Name"
+                if viewmodelRef[dataKey] then
+                    viewmodelRef[dataKey][skinKey] = equipped[weaponName].Skin
+                    viewmodelRef[dataKey][nameKey] = equipped[weaponName].Skin.Name
+                elseif viewmodelRef.Data then
+                    viewmodelRef.Data.Skin = equipped[weaponName].Skin
+                    viewmodelRef.Data.Name = equipped[weaponName].Skin.Name
                 end
             end
+
+            local result = originalCreate(self, viewmodelRef)
+            constructingWeapon = nil
+            return result
         end
     end
+
+    -- 2.10: Load saved configuration
+    loadConfig()
+    print("[Bread] Unlock All activated. All cosmetics are now yours.")
 end
 
--- ====================================================================
--- ESP SYSTEM
--- ====================================================================
+-- ============================================================
+-- SECTION 3: EXECUTE EVERYTHING
+-- ============================================================
 
-local function updateESP()
-    if not Config.ESP.Enabled then
-        for player, data in pairs(espHighlights) do
-            pcall(function() data:Destroy() end)
-            espHighlights[player] = nil
-        end
-        for player, data in pairs(espBoxes) do
-            pcall(function() data:Remove() end)
-            espBoxes[player] = nil
-        end
-        for player, data in pairs(espTexts) do
-            pcall(function() data:Remove() end)
-            espTexts[player] = nil
-        end
-        return
-    end
+coroutine.wrap(function()
+    -- Wait for game to fully load
+    task.wait(3)
     
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and not isTeammate(player) then
-            local char = getCharacter(player)
-            if char and isAlive(player) then
-                local dist = getDistance(player)
-                if dist <= Config.ESP.MaxDistance then
-                    -- Highlight
-                    if not espHighlights[player] then
-                        local highlight = Instance.new("Highlight")
-                        highlight.FillColor = Config.ESP.Color
-                        highlight.OutlineColor = Config.ESP.OutlineColor
-                        highlight.FillTransparency = Config.ESP.Transparency
-                        highlight.OutlineTransparency = Config.ESP.OutlineTransparency
-                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        highlight.Adornee = char
-                        highlight.Parent = char
-                        espHighlights[player] = highlight
-                    end
-                    
-                    -- Box
-                    if Config.ESP.ShowBoxes then
-                        if not espBoxes[player] then
-                            local box = Drawing.new("Square")
-                            box.Thickness = 1
-                            box.Color = Config.ESP.Color
-                            box.Filled = false
-                            box.Visible = true
-                            espBoxes[player] = box
-                        end
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        local head = char:FindFirstChild("Head")
-                        if hrp and head then
-                            local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
-                            local footPos, footOnScreen = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 2, 0))
-                            if headOnScreen and footOnScreen then
-                                local height = math.abs(headPos.Y - footPos.Y)
-                                local width = height * 0.5
-                                local centerX = (headPos.X + footPos.X) / 2
-                                local box = espBoxes[player]
-                                box.Position = Vector2.new(centerX - width/2, footPos.Y)
-                                box.Size = Vector2.new(width, height)
-                                box.Visible = true
-                            end
-                        end
-                    else
-                        if espBoxes[player] then
-                            espBoxes[player].Visible = false
-                        end
-                    end
-                    
-                    -- Text
-                    if Config.ESP.ShowName or Config.ESP.ShowDistance then
-                        if not espTexts[player] then
-                            local txt = Drawing.new("Text")
-                            txt.Size = 13
-                            txt.Outline = true
-                            txt.OutlineColor = Color3.fromRGB(0, 0, 0)
-                            txt.Center = true
-                            txt.Visible = true
-                            espTexts[player] = txt
-                        end
-                        local head = char:FindFirstChild("Head")
-                        if head then
-                            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                            if onScreen then
-                                local txt = espTexts[player]
-                                local text = ""
-                                if Config.ESP.ShowName then
-                                    text = player.DisplayName or player.Name
-                                end
-                                if Config.ESP.ShowDistance then
-                                    if text ~= "" then text = text .. " | " end
-                                    text = text .. math.floor(dist) .. "m"
-                                end
-                                txt.Text = text
-                                txt.Position = Vector2.new(pos.X, pos.Y - 30)
-                                txt.Color = Config.ESP.Color
-                                txt.Size = 13
-                                txt.Visible = true
-                            end
-                        end
-                    end
-                else
-                    if espHighlights[player] then
-                        pcall(function() espHighlights[player]:Destroy() end)
-                        espHighlights[player] = nil
-                    end
-                    if espBoxes[player] then
-                        pcall(function() espBoxes[player]:Remove() end)
-                        espBoxes[player] = nil
-                    end
-                    if espTexts[player] then
-                        pcall(function() espTexts[player]:Remove() end)
-                        espTexts[player] = nil
-                    end
-                end
-            else
-                if espHighlights[player] then
-                    pcall(function() espHighlights[player]:Destroy() end)
-                    espHighlights[player] = nil
-                end
-                if espBoxes[player] then
-                    pcall(function() espBoxes[player]:Remove() end)
-                    espBoxes[player] = nil
-                end
-                if espTexts[player] then
-                    pcall(function() espTexts[player]:Remove() end)
-                    espTexts[player] = nil
-                end
-            end
-        end
-    end
-end
+    pcall(acBypass)
+    pcall(unlockAll)
 
--- ====================================================================
--- FOV CIRCLE (Aimbot)
--- ====================================================================
+    -- UI Animation (optional cleanup)
+    local soundService = game:GetService("SoundService")
+    local loadSound = Instance.new("Sound", soundService)
+    loadSound.SoundId = "rbxassetid://17148249625"
+    loadSound.Volume = 0.5
+    pcall(function() loadSound:Play() end)
 
-local function createFOVCircle()
-    if fovCircle then
-        pcall(function() fovCircle:Remove() end)
-        fovCircle = nil
-    end
-    
-    if not Config.Visuals.ShowFOV then return end
-    
-    local circle = Drawing.new("Circle")
-    circle.Thickness = 1.5
-    circle.NumSides = 36
-    circle.Filled = false
-    circle.Color = Config.Visuals.FOVColor
-    circle.Transparency = Config.Visuals.FOVTransparency
-    circle.Radius = Config.Visuals.FOVRadius
-    circle.Visible = true
-    fovCircle = circle
-end
-
-local function updateFOVCircle()
-    if not fovCircle then return end
-    local mousePos = UserInputService:GetMouseLocation()
-    fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
-end
-
--- ====================================================================
--- RAGEBOT FOV CIRCLE
--- ====================================================================
-
-local function createRagebotFOVCircle()
-    if ragebotFOVCircle then
-        pcall(function() ragebotFOVCircle:Remove() end)
-        ragebotFOVCircle = nil
-    end
-    
-    if not Config.Ragebot.Enabled or not Config.Visuals.ShowRagebotFOV then return end
-    
-    local circle = Drawing.new("Circle")
-    circle.Thickness = 1.5
-    circle.NumSides = 36
-    circle.Filled = false
-    circle.Color = Config.Visuals.RagebotFOVColor
-    circle.Transparency = Config.Visuals.RagebotFOVTransparency
-    circle.Radius = Config.Ragebot.FOV
-    circle.Visible = true
-    ragebotFOVCircle = circle
-end
-
-local function updateRagebotFOVCircle()
-    if not ragebotFOVCircle then return end
-    local mousePos = UserInputService:GetMouseLocation()
-    ragebotFOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
-end
-
--- ====================================================================
--- CROSSHAIR
--- ====================================================================
-
-local function createCrosshair()
-    if crosshair then
-        pcall(function() crosshair:Remove() end)
-        crosshair = nil
-    end
-    
-    if not Config.Visuals.ShowCrosshair then return end
-    
-    local lines = {}
-    local size = Config.Visuals.CrosshairSize
-    local thickness = Config.Visuals.CrosshairThickness
-    local color = Config.Visuals.CrosshairColor
-    local style = Config.Visuals.CrosshairStyle
-    
-    if style == "dot" then
-        local dot = Drawing.new("Circle")
-        dot.Filled = true
-        dot.Radius = thickness * 2
-        dot.Color = color
-        dot.Visible = true
-        crosshair = {dot}
-        return
-    elseif style == "cross" then
-        -- Top
-        local top = Drawing.new("Line")
-        top.From = Vector2.new(-thickness/2, -size)
-        top.To = Vector2.new(thickness/2, -size)
-        top.Color = color
-        top.Thickness = thickness
-        top.Visible = true
-        table.insert(lines, top)
-        -- Bottom
-        local bottom = Drawing.new("Line")
-        bottom.From = Vector2.new(-thickness/2, size)
-        bottom.To = Vector2.new(thickness/2, size)
-        bottom.Color = color
-        bottom.Thickness = thickness
-        bottom.Visible = true
-        table.insert(lines, bottom)
-        -- Left
-        local left = Drawing.new("Line")
-        left.From = Vector2.new(-size, -thickness/2)
-        left.To = Vector2.new(-size, thickness/2)
-        left.Color = color
-        left.Thickness = thickness
-        left.Visible = true
-        table.insert(lines, left)
-        -- Right
-        local right = Drawing.new("Line")
-        right.From = Vector2.new(size, -thickness/2)
-        right.To = Vector2.new(size, thickness/2)
-        right.Color = color
-        right.Thickness
+    print("[Bread] All systems operational. Enjoy your god-tier cosmetics.")
+end)()
